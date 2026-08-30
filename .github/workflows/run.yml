@@ -25,6 +25,7 @@ on:
           - ingest_wind
           - ingest_forecasts
           - eval_alerts
+          - notify_test   # send one test message to prove the alert channel works
 
 permissions:
   contents: read
@@ -76,6 +77,10 @@ jobs:
         run: |
           for m in ${{ steps.sel.outputs.mods }}; do
             echo "::group::$m"
-            python -c "from flights import $m; $m.main()"
+            if [ "$m" = "notify_test" ]; then
+              python -c "from lib.notify import get_notifier; import sys; ok = get_notifier().send('\u2705 sudestada watch: test notification. If you can read this, the alert channel works.'); print('delivered:', ok); sys.exit(0 if ok else 1)"
+            else
+              python -c "from flights import $m; $m.main()"
+            fi
             echo "::endgroup::"
           done

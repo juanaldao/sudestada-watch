@@ -69,7 +69,9 @@ Without `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID`, alerts print to the console.
 3. Push to `main` → the **deploy** workflow creates the database and applies schema/views.
    The **run** workflow then executes each job on its cron.
 4. **Add repo secrets `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`** so alerts reach Telegram;
-   without them they print to the workflow log.
+   without them they print to the workflow log. Verify the channel with
+   `gh workflow run "run sudestada jobs" -f job=notify_test` — alerts are rare, so don't wait
+   for a real one to find out whether delivery works.
    Get a token from @BotFather; get the chat id by messaging the bot and reading
    `https://api.telegram.org/bot<token>/getUpdates`.
 
