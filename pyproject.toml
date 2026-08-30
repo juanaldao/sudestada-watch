@@ -11,8 +11,6 @@ dependencies = [
     "duckdb>=1.1",
     "requests>=2.31",
     "pandas>=2.1",
-    "beautifulsoup4>=4.12",
-    "pdfplumber>=0.11",
 ]
 
 # The code lives in top-level `lib` and `flights` packages. `lib/sql/*.sql` ships as
