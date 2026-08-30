@@ -1,0 +1,8 @@
+{
+  "id": "d9da3cc9-57db-4d8c-a22c-dbf1db2041a2",
+  "title": "Sudestada Forecast",
+  "description": "Rio de la Plata water-level forecast at San Fernando with INA uncertainty bands, the Tigre wind that drives a sudestada, and distance to the warning threshold.",
+  "requiredResources": [
+    { "url": "md:sudestada", "alias": "sudestada" }
+  ]
+}
