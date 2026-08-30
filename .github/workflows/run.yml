@@ -1,18 +1,21 @@
 # Scheduled ETL. MotherDuck Flights would be the natural home for this (see PLAN.md), but
-# scheduled Flights require a Business plan, so the cron lives here instead. Each job just
-# calls the same flights/<module>.main() the Flights would have run.
+# scheduled Flights require a Business plan, so the cron lives here instead.
 #
-# GitHub's scheduled runs are queued and can be late or skipped under load. That is tolerable
-# here: ingestion is idempotent (natural PKs + ON CONFLICT) and alerts dedupe via alert_event,
-# so a missed tick is picked up by the next one.
+# ONE schedule entry, deliberately. Four separate entries on :00/:05 boundaries produced zero
+# runs in 67 minutes on 2026-08-30 -- each entry is its own registration, and GitHub drops
+# scheduled runs under load, worst at the top of the hour. A single off-boundary cron is one
+# registration at a quieter minute. Every tick runs all four modules in dependency order, so
+# eval_alerts always sees data ingested moments earlier (the old split gave no such guarantee).
+#
+# Running everything every 15 min costs ~96 fetches/day per source instead of 24 for
+# wind/forecasts -- negligible for these APIs, and worth it for the simpler, sturdier trigger.
+# Late or dropped ticks stay harmless: ingestion is idempotent (natural PKs + ON CONFLICT) and
+# alerts dedupe via alert_event.
 name: run sudestada jobs
 
 on:
   schedule:
-    - cron: "*/15 * * * *"        # ingest_levels
-    - cron: "0 * * * *"           # ingest_wind
-    - cron: "5 * * * *"           # ingest_forecasts
-    - cron: "7,22,37,52 * * * *"  # eval_alerts
+    - cron: "7,22,37,52 * * * *"   # all four modules, off-boundary
   workflow_dispatch:
     inputs:
       job:
@@ -32,7 +35,7 @@ permissions:
 
 # Don't let a slow run stack up on the next tick, but never cancel one mid-write.
 concurrency:
-  group: sudestada-run-${{ github.event.schedule || inputs.job }}
+  group: sudestada-run
   cancel-in-progress: false
 
 jobs:
@@ -56,17 +59,11 @@ jobs:
       - name: Install deps
         run: pip install -r requirements.txt
 
-      # Map the cron that fired (github.event.schedule) to the module it belongs to.
+      # Scheduled ticks run everything; a manual dispatch can pick one job.
       - name: Select modules
         id: sel
         run: |
-          case "${{ github.event.schedule }}" in
-            "*/15 * * * *")       mods=ingest_levels ;;
-            "0 * * * *")          mods=ingest_wind ;;
-            "5 * * * *")          mods=ingest_forecasts ;;
-            "7,22,37,52 * * * *") mods=eval_alerts ;;
-            *)                    mods="${{ inputs.job }}" ;;
-          esac
+          mods="${{ inputs.job }}"
           if [ "$mods" = "all" ] || [ -z "$mods" ]; then
             mods="ingest_levels ingest_wind ingest_forecasts eval_alerts"
           fi
