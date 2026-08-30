@@ -38,7 +38,9 @@ OPEN_METEO_FORECAST = "https://api.open-meteo.com/v1/forecast"
 OPEN_METEO_ARCHIVE = "https://archive-api.open-meteo.com/v1/archive"
 
 # --- Alert thresholds (configurable; tune from history) --------------------------------------
-# Level thresholds are per source because of the datum caveat.
+# Thresholds are keyed per source so each can be tuned independently. Measured 2026-08-30, INA
+# and SHN return identical levels (max delta 0.000 m over 130 same-instant pairs), so the values
+# below are the same for both -- they are the same underlying gauge, not two opinions.
 LEVEL_THRESHOLDS_M = {
     # (source, station): {"warning": m, "alert": m}
     ("shn", SAN_FERNANDO): {"warning": 2.5, "alert": 3.0},

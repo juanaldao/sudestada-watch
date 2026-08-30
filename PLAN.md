@@ -147,9 +147,10 @@ Bot token + chat id live in **MotherDuck Flight secrets**, not the repo.
 
 - **Timezones:** SHN pages local ART (UTC−3); INA a5 UTC (`...Z`); Open-Meteo configurable —
   **store everything UTC**, convert at the edges.
-- **Vertical datum:** SHN and INA levels may use different reference zeros. Compute residuals
-  **within a single source**; treat cross-source absolute levels as separate series until
-  datums are reconciled.
+- **Vertical datum:** ~~may use different reference zeros~~ — **measured 2026-08-30: SHN and INA are
+  identical** (max |INA − SHN| = 0.000 m across 130 same-instant pairs) — they republish the same
+  gauge, so they are not independent sources and cannot cross-validate each other. Still compute
+  residuals **within a single source**; the feared datum step does not exist.
 - **SHN CSV:** ISO-8859-1; `S/D`/`F/S` = missing → null.
 - **10-day window:** SHN observed CSV retains only 10 days → our MotherDuck tables are the
   long-term archive; the 15-min Flight must run reliably.

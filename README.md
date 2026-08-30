@@ -37,8 +37,11 @@ Jobs & cadence (UTC): `ingest_levels` every 15 min · `ingest_wind` hourly ·
 `official_alert` (SHN AACRIOPLA), `shn_bulletin` (Pronóstico text), `alert_event` (what we
 raised; dedupe log). Derived views: `v_residual`, `v_latest_level`, `v_wind_features`.
 
-All timestamps are UTC. **Datum caveat:** SHN and INA use different vertical zeros — never
-compare their absolute levels; residuals are computed within a single source.
+All timestamps are UTC. Residuals are computed **within a single source** (a source's tide
+prediction is on its own reference). SHN and INA absolute levels were checked on 2026-08-30 and
+were found **identical** (max |INA − SHN| = 0.000 m over 130 same-instant pairs), so the two
+feeds appear to republish the same gauge. An earlier note claiming a ~1.3 m offset was wrong,
+and cross-source agreement should not be read as corroboration.
 
 ## Local dev
 

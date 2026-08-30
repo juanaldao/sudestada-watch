@@ -39,6 +39,21 @@ assert "shn" in srcs, "no SHN rows ingested"
 stations = {r[1] for r in by_src}
 assert config.SAN_FERNANDO in stations and config.PILOTE_NORDEN in stations
 
-# Datum sanity: same-instant INA vs SHN San Fernando levels should differ (different zeros).
+# Datum sanity: report same-instant INA vs SHN agreement. Measured 2026-08-30 as exactly 0.000 m
+# over 130 pairs -- the feeds republish the same gauge (an earlier note claiming a ~1.3 m offset
+# was wrong). A non-zero value here means that changed. Printed rather than
+# asserted -- one day of evidence isn't enough to pick a tolerance, but a real datum shift
+# would show up here immediately.
+delta = con.execute(
+    "select count(*), round(max(abs(i.value - s.value)), 3) "
+    "from observation i join observation s "
+    "  on i.station = s.station and i.ts_utc = s.ts_utc and i.variable = s.variable "
+    "where i.source = 'ina' and s.source = 'shn' and i.variable = 'level_observed'"
+).fetchone()
+if delta[0]:
+    print(f"datum check: {delta[0]} same-instant pairs, max |INA-SHN| = {delta[1]} m")
+else:
+    print("datum check: no same-instant INA/SHN pairs in this window")
+
 print("smoke_levels OK — idempotent, both sources + both stations present")
 con.close()

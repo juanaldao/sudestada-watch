@@ -1,7 +1,10 @@
 -- Sudestada Watch — derived-signal views. Rerun-safe (CREATE OR REPLACE).
 
 -- Meteorological surge = observed level - astronomic tide, computed WITHIN a single source
--- (SHN and INA use different vertical datums, so never cross them here). This residual is the
+-- (a source's tide prediction is on that source's own reference, so never cross them here).
+-- NB: measured 2026-08-30, SHN and INA absolute levels are identical (max delta 0.000 m over
+-- 130 same-instant pairs) -- same gauge, not two sources. An earlier note claiming a ~1.3 m
+-- datum offset between them was wrong. This residual is the
 -- real sudestada signal; raw level is dominated by the ordinary astronomic tide.
 CREATE OR REPLACE VIEW v_residual AS
 SELECT

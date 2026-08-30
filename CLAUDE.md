@@ -70,8 +70,13 @@ Everything after the frame lands is SQL; Python only touches the messy edges.
 
 - **UTC everywhere in storage.** Convert at the edges: SHN pages are local ART (UTC−3, add 3 h
   via `lib/shn.py::_local_to_utc`); INA is already UTC (`...Z`); Open-Meteo requested as UTC.
-- **Never compare INA vs SHN absolute levels** — different vertical datums (INA reads ~1.3 m
-  higher at the same instant). `v_residual` joins observed and tide **within a single source**.
+- **Compute residuals within a single source.** `v_residual` joins observed and tide within one
+  source, because a source's tide prediction is on that source's own reference. (An earlier note here claimed INA
+  reads ~1.3 m higher than SHN at the same instant — that is **wrong**. Measured 2026-08-30 over
+  130 same-instant pairs: **max |INA − SHN| = 0.000 m**. They are not merely close, they are
+  identical, which means the two feeds republish the same gauge data for these stations. Treat
+  them as ONE source for validation purposes — agreement between them proves nothing, and a bad
+  gauge corrupts both. `tests/smoke_levels.py` prints this delta on every run.)
 - **Idempotency is load-bearing.** Every table has a natural PK and ingestion relies on
   `ON CONFLICT`. Keep frame columns and PKs in sync when adding fields; reruns must not dup.
 - **Alert dedupe** lives in `alert_event` keyed by `(rule, station, dedupe_key)`. A condition
