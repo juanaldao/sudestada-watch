@@ -85,6 +85,8 @@ Everything after the frame lands is SQL; Python only touches the messy edges.
 - Raw hourly astronomic tide (SHN `Tmareas` ASP form) is NOT ingested yet → `tide_astro` empty
   → `v_residual` empty. Corrected pleamar/bajamar from the Pronóstico ARE captured.
 - Level thresholds in `lib/config.py` are placeholders — tune from history/ERA5 backtests.
-- The `schedule`/`secrets` arg names for `MD_CREATE_FLIGHT` (isolated at top of
-  `deploy/sync_flights.py` as `_SCHEDULE_ARG`) must be validated against the current MotherDuck
-  SQL reference before first deploy; Telegram secrets are set on the Flights, not pushed by CI.
+- ~~Validate the `MD_CREATE_FLIGHT` arg names~~ — done 2026-08-30 against the MotherDuck SQL
+  reference: the cron arg is `schedule_cron`, the secrets arg is `flight_secret_names`
+  (`VARCHAR[]`), and `MD_UPDATE_FLIGHT` keys on `flight_id` (UUID) resolved via
+  `MD_LIST_FLIGHTS()` — its `name` arg renames. Telegram secrets are set on the Flights, not
+  pushed by CI.

@@ -17,8 +17,8 @@ deltas from the original design below:
 - **Deferred:** raw hourly astronomic-tide series (SHN `Tmareas` ASP POST form) — so
   `tide_astro` is unpopulated and `v_residual` is currently empty; corrected extremes from the
   pronóstico are captured. Follow-up: synthesize hourly astro via a harmonic model (`utide`).
-- **Confirm before first deploy:** the `schedule`/`secrets` arg names for `MD_CREATE_FLIGHT`
-  (isolated at the top of `deploy/sync_flights.py`) against the current MotherDuck SQL ref.
+- ~~Confirm before first deploy:~~ **done 2026-08-30** — `MD_CREATE_FLIGHT` takes
+  `schedule_cron` and `flight_secret_names`; `MD_UPDATE_FLIGHT` keys on `flight_id`.
 
 ## Context
 

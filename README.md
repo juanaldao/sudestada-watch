@@ -67,13 +67,14 @@ Without `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID`, alerts print to the console.
 3. Push to `main` → the **deploy** workflow applies schema/views and registers/updates the
    four Flights. Each Flight pip-installs this repo and runs its module on its cron.
 4. **Set Telegram secrets on the Flights** (once) in the MotherDuck UI (Flights → secrets) or
-   via `MD_UPDATE_FLIGHT(... secrets := ...)`: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`.
+   via `MD_UPDATE_FLIGHT(... flight_secret_names := [...])`: `TELEGRAM_BOT_TOKEN`,
+   `TELEGRAM_CHAT_ID`.
    Get a token from @BotFather; get the chat id by messaging the bot and reading
    `https://api.telegram.org/bot<token>/getUpdates`.
 
-> The `schedule`/`secrets` argument names in `deploy/sync_flights.py` are isolated at the top
-> of that file — validate them against the current MotherDuck SQL reference and adjust if the
-> API differs.
+> Flight argument names were validated against the MotherDuck SQL reference on 2026-08-30:
+> `schedule_cron` for the cron, `flight_secret_names` (`VARCHAR[]`) for secrets, and
+> `flight_id` (not `name`) to identify a Flight in `MD_UPDATE_FLIGHT`.
 
 ## Alert rules (`flights/eval_alerts.py`)
 

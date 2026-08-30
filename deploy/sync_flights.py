@@ -5,11 +5,11 @@ Run by GitHub Actions on push (see .github/workflows/deploy.yml), or locally wit
 Each Flight's source is a tiny bootstrap that pip-installs THIS repo (via requirements_txt =
 the git URL) and calls the module's main(). So the Flight always runs the pushed code.
 
-NOTE ON PARAM NAMES: `name`, `source_code`, `requirements_txt` are confirmed from the MD docs.
-The `schedule` (cron) and `secrets` argument names should be validated against the current
-MotherDuck SQL reference for MD_CREATE_FLIGHT / MD_UPDATE_FLIGHT — they are isolated in
-_SCHEDULE_ARG below so a rename is a one-line change. Telegram secrets are NOT pushed from
-here (to avoid leaking them into CI logs); set them once as Flight secrets (see README).
+PARAM NAMES are validated against the MotherDuck SQL reference (2026-08-30): the cron
+argument is `schedule_cron` (not `schedule`) and the secrets argument is `flight_secret_names`
+(a VARCHAR[], not `secrets`). MD_UPDATE_FLIGHT identifies a Flight by `flight_id` (UUID) — its
+`name` argument RENAMES it — so we resolve the id via MD_LIST_FLIGHTS() first. Telegram secrets
+are NOT pushed from here (to avoid leaking them into CI logs); set them once (see README).
 """
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ import sys
 
 import duckdb
 
-_SCHEDULE_ARG = "schedule"  # <- validate against MD reference; rename here if needed
+_SCHEDULE_ARG = "schedule_cron"  # validated against the MD SQL reference
 
 # name, importable module in the `flights` package, cron (UTC). Alerts run a few minutes
 # after the ingesters so they see the freshest data.
@@ -52,14 +52,33 @@ def _q(s: str) -> str:
     return "'" + s.replace("'", "''") + "'"
 
 
-def _call(fn: str, name: str, source: str, reqs: str, cron: str) -> str:
+def _create(name: str, source: str, reqs: str, cron: str) -> str:
     return (
-        f"SELECT * FROM {fn}("
+        f"SELECT * FROM MD_CREATE_FLIGHT("
         f"name := {_q(name)}, "
         f"source_code := $flight${source}$flight$, "
         f"requirements_txt := {_q(reqs)}, "
         f"{_SCHEDULE_ARG} := {_q(cron)})"
     )
+
+
+def _update(flight_id: str, source: str, reqs: str, cron: str) -> str:
+    """MD_UPDATE_FLIGHT keys on flight_id; passing `name` would rename the Flight."""
+    return (
+        f"SELECT * FROM MD_UPDATE_FLIGHT("
+        f"flight_id := {_q(flight_id)}, "
+        f"source_code := $flight${source}$flight$, "
+        f"requirements_txt := {_q(reqs)}, "
+        f"{_SCHEDULE_ARG} := {_q(cron)})"
+    )
+
+
+def existing_flights(con) -> dict[str, str]:
+    """Map flight_name -> flight_id. The name column is `flight_name`, not `name`."""
+    rows = con.execute(
+        'SELECT flight_id, flight_name FROM MD_LIST_FLIGHTS("LIMIT" := 1000)'
+    ).fetchall()
+    return {name: str(fid) for fid, name in rows}
 
 
 def main() -> None:
@@ -78,21 +97,26 @@ def main() -> None:
 
     reqs = repo_requirements()
     print(f"Flight requirements: {reqs}")
+    known = existing_flights(con)
+    failures = 0
     for f in FLIGHTS:
         src = source_for(f["module"])
+        fid = known.get(f["name"])
         try:
-            con.execute(_call("MD_CREATE_FLIGHT", f["name"], src, reqs, f["cron"]))
-            print(f"created  {f['name']}  ({f['cron']})")
-        except duckdb.Error as e:
-            # Already exists (or create not idempotent) -> update in place.
-            try:
-                con.execute(_call("MD_UPDATE_FLIGHT", f["name"], src, reqs, f["cron"]))
+            if fid is None:
+                con.execute(_create(f["name"], src, reqs, f["cron"]))
+                print(f"created  {f['name']}  ({f['cron']})")
+            else:
+                con.execute(_update(fid, src, reqs, f["cron"]))
                 print(f"updated  {f['name']}  ({f['cron']})")
-            except duckdb.Error as e2:
-                print(f"FAILED   {f['name']}: create={e} update={e2}", file=sys.stderr)
+        except duckdb.Error as e:
+            print(f"FAILED   {f['name']}: {e}", file=sys.stderr)
+            failures += 1
     con.close()
+    if failures:
+        sys.exit(f"{failures} of {len(FLIGHTS)} Flights failed to sync")
     print("\nReminder: set Flight secrets TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID in MotherDuck "
-          "(UI: Flights > secrets, or MD_UPDATE_FLIGHT ... secrets := ...). See README.")
+          "(UI: Flights > secrets, or MD_UPDATE_FLIGHT ... flight_secret_names := [...]). See README.")
 
 
 if __name__ == "__main__":
