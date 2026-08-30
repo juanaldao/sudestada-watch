@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sudestada-watch"
+version = "0.1.0"
+description = "Sudestada watch — ingest + alert on Río de la Plata / Delta water levels (MotherDuck)"
+requires-python = ">=3.10"
+dependencies = [
+    "duckdb>=1.1",
+    "requests>=2.31",
+    "pandas>=2.1",
+    "beautifulsoup4>=4.12",
+    "pdfplumber>=0.11",
+]
+
+# The code lives in top-level `lib` and `flights` packages. `lib/sql/*.sql` ships as
+# package data so ensure_schema() can find it after a pip install (e.g. inside a Flight).
+[tool.setuptools]
+packages = ["lib", "flights"]
+
+[tool.setuptools.package-data]
+lib = ["sql/*.sql"]
