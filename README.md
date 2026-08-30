@@ -28,8 +28,9 @@ deploy/         init_db.py — creates the DB + applies schema (run by CI)
 tests/          smoke_*.py — run each stage end-to-end against a local DuckDB
 ```
 
-Jobs & cadence (UTC): `ingest_levels` every 15 min · `ingest_wind` hourly ·
-`ingest_forecasts` hourly · `eval_alerts` at :07/:22/:37/:52.
+Cadence (UTC): all four jobs run **hourly at :52**, in order — levels, wind, forecasts, then
+alerts. INA and SHN both publish at :45, so hourly is the sources' own resolution; :52 leaves
+7 minutes of margin and avoids the contended top of the hour.
 
 ## Tables
 

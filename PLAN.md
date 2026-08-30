@@ -81,7 +81,10 @@ repo/
   .github/workflows/deploy.yml
 ```
 
-**Flights & cadence** (each its own native cron):
+**Cadence** — superseded 2026-08-30: all four now run **hourly at :52** from
+`.github/workflows/run.yml`, not as Flights on separate crons. Both sources publish at :45, so
+15-min polling re-fetched identical rows; and GitHub honoured only 1 tick in 4 at 15-min
+frequency. Original per-Flight design below.
 - `ingest_levels` — every **15 min** (INA + SHN observed).
 - `ingest_wind` — **hourly** (Open-Meteo forecast+gusts; refreshes forward-looking rows).
 - `ingest_forecasts` — **hourly** (INA forecast run, SHN pronóstico/alerts/tide).

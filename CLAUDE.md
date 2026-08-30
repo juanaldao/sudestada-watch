@@ -58,8 +58,9 @@ Everything after the frame lands is SQL; Python only touches the messy edges.
 - `lib/config.py` — stations, source IDs (INA series 52/3345, cal 432), endpoints, thresholds.
 - `flights/*.py` — the four scheduled jobs, each with a `main()`; each source is wrapped in
   try/except so one failing feed doesn't sink the run. Scheduled by `run.yml`, which maps the
-  cron that fired to a module. Cadence: `ingest_levels` 15 min,
-  `ingest_wind` + `ingest_forecasts` hourly, `eval_alerts` at :07/:22/:37/:52.
+  Scheduled by `run.yml`, which runs **all four hourly at :52** in dependency order, so
+  `eval_alerts` always reads data ingested seconds earlier. Both sources publish at :45, so
+  hourly matches the real resolution -- the original 15-min poll re-fetched identical rows.
 - `lib/sql/schema.sql` (tables + PKs) and `views.sql` (`v_residual`, `v_latest_level`,
   `v_wind_features`). Views are `CREATE OR REPLACE`; tables are `IF NOT EXISTS`.
 - `deploy/init_db.py` — creates the database + applies schema/views; this is what CI runs.

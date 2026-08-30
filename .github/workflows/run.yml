@@ -1,21 +1,29 @@
 # Scheduled ETL. MotherDuck Flights would be the natural home for this (see PLAN.md), but
 # scheduled Flights require a Business plan, so the cron lives here instead.
 #
-# ONE schedule entry, deliberately. Four separate entries on :00/:05 boundaries produced zero
-# runs in 67 minutes on 2026-08-30 -- each entry is its own registration, and GitHub drops
-# scheduled runs under load, worst at the top of the hour. A single off-boundary cron is one
-# registration at a quieter minute. Every tick runs all four modules in dependency order, so
-# eval_alerts always sees data ingested moments earlier (the old split gave no such guarantee).
+# HOURLY at :52, one schedule entry, all four modules in dependency order.
 #
-# Running everything every 15 min costs ~96 fetches/day per source instead of 24 for
-# wind/forecasts -- negligible for these APIs, and worth it for the simpler, sturdier trigger.
-# Late or dropped ticks stay harmless: ingestion is idempotent (natural PKs + ON CONFLICT) and
-# alerts dedupe via alert_event.
+# Why hourly: INA and SHN both publish on the hour at :45 -- every level reading in the table
+# sits at minute 45, without exception. A 15-minute poll re-fetched identical rows four times
+# and gained nothing; the sources, not the cron, set the real resolution.
+#
+# Why :52: seven minutes after publication, so a tick reads fresh data, and off the top of the
+# hour where GitHub's scheduler is most contended. Empirically it is also the only minute that
+# actually fired when four ticks/hour were configured.
+#
+# Why one entry: each cron line is a separate registration and GitHub deprioritises
+# high-frequency schedules -- with 7,22,37,52 only 1 tick in 4 ran. One hourly registration
+# asks for the least and is the most likely to be honoured.
+#
+# Running all four per tick means eval_alerts always reads data ingested seconds earlier.
+# Late or dropped ticks stay harmless: ingestion is idempotent (natural PKs + ON CONFLICT,
+# verified in production -- a repeat run touched 17 rows, not 743, with zero duplicate keys)
+# and alerts dedupe via alert_event.
 name: run sudestada jobs
 
 on:
   schedule:
-    - cron: "7,22,37,52 * * * *"   # all four modules, off-boundary
+    - cron: "52 * * * *"   # hourly, 7 min after the sources publish at :45
   workflow_dispatch:
     inputs:
       job:
