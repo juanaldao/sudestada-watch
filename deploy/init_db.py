@@ -28,8 +28,11 @@ def main() -> None:
     con.execute(f'CREATE DATABASE IF NOT EXISTS "{db}"')
     con.execute(f'USE "{db}"')
     md.ensure_schema(con)
+    # Filter by catalog: bare `md:` attaches every database, so an unfiltered
+    # information_schema query also lists other databases' tables and MotherDuck's system views.
     objs = [r[0] for r in con.execute(
-        "SELECT table_name FROM information_schema.tables WHERE table_schema = 'main' ORDER BY 1"
+        "SELECT table_name FROM information_schema.tables "
+        "WHERE table_catalog = ? AND table_schema = 'main' ORDER BY 1", [db]
     ).fetchall()]
     con.close()
     print(f"schema applied to {db}: {objs}")
