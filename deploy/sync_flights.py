@@ -87,8 +87,12 @@ def main() -> None:
         print("MOTHERDUCK_TOKEN not set", file=sys.stderr)
         sys.exit(1)
     db = os.environ.get("SUDESTADA_DATABASE", "sudestada")
-    # Token as config, not in the URI — see lib/md.py::connect.
-    con = duckdb.connect(f"md:{db}", config={"motherduck_token": token})
+    # Token as config, not in the URI — see lib/md.py::connect. Connect to bare `md:` so we
+    # can create the database on a fresh account; schema.sql/views.sql are unqualified, so
+    # USE it before applying them.
+    con = duckdb.connect("md:", config={"motherduck_token": token})
+    con.execute(f'CREATE DATABASE IF NOT EXISTS "{db}"')
+    con.execute(f'USE "{db}"')
 
     # Ensure the database schema/views are current (Flights also self-apply, this is a backstop).
     from pathlib import Path
