@@ -35,7 +35,9 @@ def connect(database: str | None = None) -> duckdb.DuckDBPyConnection:
     db = database or DEFAULT_DATABASE
     token = os.environ.get("MOTHERDUCK_TOKEN")
     if token:
-        return duckdb.connect(f"md:{db}?motherduck_token={token}")
+        # Pass the token as config, not in the URI: a stray newline or reserved character
+        # in the value makes DuckDB fail URI parsing ("Invalid character in scheme").
+        return duckdb.connect(f"md:{db}", config={"motherduck_token": token.strip()})
     return duckdb.connect(f"md:{db}")  # token auto-injected in a Flight runtime
 
 

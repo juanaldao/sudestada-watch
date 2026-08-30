@@ -82,12 +82,13 @@ def existing_flights(con) -> dict[str, str]:
 
 
 def main() -> None:
-    token = os.environ.get("MOTHERDUCK_TOKEN") or os.environ.get("motherduck_token")
+    token = (os.environ.get("MOTHERDUCK_TOKEN") or os.environ.get("motherduck_token") or "").strip()
     if not token:
         print("MOTHERDUCK_TOKEN not set", file=sys.stderr)
         sys.exit(1)
     db = os.environ.get("SUDESTADA_DATABASE", "sudestada")
-    con = duckdb.connect(f"md:{db}?motherduck_token={token}")
+    # Token as config, not in the URI — see lib/md.py::connect.
+    con = duckdb.connect(f"md:{db}", config={"motherduck_token": token})
 
     # Ensure the database schema/views are current (Flights also self-apply, this is a backstop).
     from pathlib import Path
