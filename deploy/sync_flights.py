@@ -1,6 +1,11 @@
 """Register/update the Sudestada Watch Flights in MotherDuck from this repo.
 
-Run by GitHub Actions on push (see .github/workflows/deploy.yml), or locally with a token.
+NOT RUN BY CI. Scheduled Flights require a MotherDuck Business plan — on a lesser plan every
+MD_CREATE_FLIGHT with schedule_cron fails with "Scheduled runs are not available on your plan"
+(hit 2026-08-30). The ETL is scheduled in .github/workflows/run.yml instead. Keep this script:
+it is correct and is the one-command path back to Flights if the account is ever upgraded.
+
+Run locally with a token once on a Business plan.
 
 Each Flight's source is a tiny bootstrap that pip-installs THIS repo (via requirements_txt =
 the git URL) and calls the module's main(). So the Flight always runs the pushed code.

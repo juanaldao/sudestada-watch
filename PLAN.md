@@ -19,6 +19,11 @@ deltas from the original design below:
   pronóstico are captured. Follow-up: synthesize hourly astro via a harmonic model (`utide`).
 - ~~Confirm before first deploy:~~ **done 2026-08-30** — `MD_CREATE_FLIGHT` takes
   `schedule_cron` and `flight_secret_names`; `MD_UPDATE_FLIGHT` keys on `flight_id`.
+- **Scheduling changed 2026-08-30:** MotherDuck rejected every scheduled Flight with
+  "Scheduled runs are not available on your plan. Upgrade to a Business plan." The cron moved
+  to `.github/workflows/run.yml`. This reverses the PLAN decision below that rejected Actions
+  as a scheduler — that rationale assumed Flights' native cron was available. `sync_flights.py`
+  is kept and is correct; it needs only a plan upgrade.
 
 ## Context
 

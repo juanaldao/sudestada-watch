@@ -1,4 +1,4 @@
-name: deploy sudestada flights
+name: deploy sudestada schema
 
 on:
   workflow_dispatch:
@@ -30,7 +30,7 @@ jobs:
       - name: Install deps
         run: pip install duckdb
 
-      # Applies schema/views AND registers/updates the four Flights (each pip-installs this
-      # repo at the pushed commit and runs on its own cron inside MotherDuck).
-      - name: Sync Flights
-        run: python deploy/sync_flights.py
+      # Creates the database if needed and applies schema/views. The ETL itself is scheduled
+      # in run.yml, not as MotherDuck Flights (scheduled Flights need a Business plan).
+      - name: Apply schema
+        run: python deploy/init_db.py

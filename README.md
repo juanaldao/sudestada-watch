@@ -5,8 +5,9 @@ and raises alerts when a *sudestada* (persistent SE wind piling water up the est
 flooding near Tigre.
 
 - **Storage:** MotherDuck (DuckDB cloud).
-- **ETL:** MotherDuck Flights (scheduled Python, native cron).
-- **Deploy:** GitHub Actions on push (registers/updates the Flights; does not trigger them).
+- **ETL:** scheduled GitHub Actions (`.github/workflows/run.yml`). MotherDuck Flights were
+  the original design, but scheduled Flights require a Business plan.
+- **Deploy:** GitHub Actions on push (creates the database and applies schema/views).
 - **Alerts:** Telegram.
 
 ## Data sources (all reads are public, no auth)
@@ -22,11 +23,12 @@ flooding near Tigre.
 ```
 lib/            fetch+normalize helpers, MotherDuck connection, config, notifier, sql/
 flights/        the four scheduled jobs (each has a main())
-deploy/         sync_flights.py — registers Flights via MD_CREATE_FLIGHT/MD_UPDATE_FLIGHT
+deploy/         init_db.py — creates the DB + applies schema (run by CI)
+                sync_flights.py — Flights registration; needs a Business plan, not run by CI
 tests/          smoke_*.py — run each stage end-to-end against a local DuckDB
 ```
 
-Flights & cadence (UTC): `ingest_levels` every 15 min · `ingest_wind` hourly ·
+Jobs & cadence (UTC): `ingest_levels` every 15 min · `ingest_wind` hourly ·
 `ingest_forecasts` hourly · `eval_alerts` at :07/:22/:37/:52.
 
 ## Tables
@@ -49,7 +51,7 @@ export SUDESTADA_DB=./_smoke.duckdb   # use a local DuckDB file instead of Mothe
 python tests/smoke_alerts.py          # full pipeline: ingest -> evaluate -> notify (console)
 ```
 
-Run one Flight locally against MotherDuck:
+Run one job locally against MotherDuck:
 
 ```bash
 export MOTHERDUCK_TOKEN=...
@@ -64,17 +66,16 @@ Without `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID`, alerts print to the console.
 2. Add repo secret **`MOTHERDUCK_TOKEN`**. Optionally set `REPO_URL`
    (e.g. `git+https://github.com/you/sudestada-watch.git@main`); otherwise it's derived from
    the Actions env at the pushed commit.
-3. Push to `main` → the **deploy** workflow applies schema/views and registers/updates the
-   four Flights. Each Flight pip-installs this repo and runs its module on its cron.
-4. **Set Telegram secrets on the Flights** (once) in the MotherDuck UI (Flights → secrets) or
-   via `MD_UPDATE_FLIGHT(... flight_secret_names := [...])`: `TELEGRAM_BOT_TOKEN`,
-   `TELEGRAM_CHAT_ID`.
+3. Push to `main` → the **deploy** workflow creates the database and applies schema/views.
+   The **run** workflow then executes each job on its cron.
+4. **Add repo secrets `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`** so alerts reach Telegram;
+   without them they print to the workflow log.
    Get a token from @BotFather; get the chat id by messaging the bot and reading
    `https://api.telegram.org/bot<token>/getUpdates`.
 
-> Flight argument names were validated against the MotherDuck SQL reference on 2026-08-30:
-> `schedule_cron` for the cron, `flight_secret_names` (`VARCHAR[]`) for secrets, and
-> `flight_id` (not `name`) to identify a Flight in `MD_UPDATE_FLIGHT`.
+> `deploy/sync_flights.py` is correct and validated against the MotherDuck SQL reference
+> (2026-08-30): `schedule_cron`, `flight_secret_names` (`VARCHAR[]`), and `flight_id` (not
+> `name`) for `MD_UPDATE_FLIGHT`. It only needs a Business plan to run.
 
 ## Alert rules (`flights/eval_alerts.py`)
 

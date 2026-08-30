@@ -6,8 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A "sudestada watch": ingests Río de la Plata / Paraná Delta water data (San Fernando + Pilote
 Norden) and raises flood alerts. Storage is **MotherDuck** (DuckDB cloud); ETL runs as
-**MotherDuck Flights** (scheduled Python); deploy is via **GitHub Actions** (CI only, not a
-scheduler); alerts go to **Telegram**. See `README.md` and `PLAN.md` for the full rationale.
+**scheduled GitHub Actions** (`.github/workflows/run.yml`); alerts go to **Telegram**.
+MotherDuck Flights were the original design and the code still suits them, but scheduled
+Flights need a Business plan, so Actions carries the cron. `deploy.yml` applies the schema. See `README.md` and `PLAN.md` for the full rationale.
 
 ## Commands
 
@@ -26,13 +27,12 @@ python tests/smoke_wind.py         # Open-Meteo wind + v_wind_features
 python tests/smoke_forecasts.py    # INA forecast + SHN pronostico/alerts
 python tests/smoke_alerts.py       # FULL end-to-end: ingest -> evaluate -> notify (console)
 
-# Run a single Flight against MotherDuck (real cloud DB):
+# Run a single job against MotherDuck (real cloud DB):
 MOTHERDUCK_TOKEN=... python flights/ingest_levels.py
 
-# Deploy: register/update the four Flights in MotherDuck
+# Deploy: create the database + apply schema/views (what CI runs on push)
 export MOTHERDUCK_TOKEN=...
-export REPO_URL="git+https://github.com/<you>/sudestada-watch.git@main"
-python deploy/sync_flights.py
+python deploy/init_db.py
 ```
 
 There is no build step, linter config, or test framework — the `tests/smoke_*.py` scripts ARE
@@ -57,11 +57,14 @@ Everything after the frame lands is SQL; Python only touches the messy edges.
   the frame, `INSERT ... ON CONFLICT DO NOTHING`, or `DO UPDATE` for forecasts).
 - `lib/config.py` — stations, source IDs (INA series 52/3345, cal 432), endpoints, thresholds.
 - `flights/*.py` — the four scheduled jobs, each with a `main()`; each source is wrapped in
-  try/except so one failing feed doesn't sink the Flight. Cadence: `ingest_levels` 15 min,
+  try/except so one failing feed doesn't sink the run. Scheduled by `run.yml`, which maps the
+  cron that fired to a module. Cadence: `ingest_levels` 15 min,
   `ingest_wind` + `ingest_forecasts` hourly, `eval_alerts` at :07/:22/:37/:52.
 - `lib/sql/schema.sql` (tables + PKs) and `views.sql` (`v_residual`, `v_latest_level`,
   `v_wind_features`). Views are `CREATE OR REPLACE`; tables are `IF NOT EXISTS`.
-- `deploy/sync_flights.py` — the `FLIGHTS` list + `MD_CREATE_FLIGHT`/`MD_UPDATE_FLIGHT` calls.
+- `deploy/init_db.py` — creates the database + applies schema/views; this is what CI runs.
+- `deploy/sync_flights.py` — Flights registration. NOT run by CI; needs a Business plan.
+  Kept as the path back to Flights if the account is upgraded.
 
 ## Conventions that will bite you if ignored
 
@@ -75,10 +78,12 @@ Everything after the frame lands is SQL; Python only touches the messy edges.
   notifies once; changing a `dedupe_key` formula in `eval_alerts.py` changes re-alert cadence.
 - **Encodings:** SHN `AlturasHorarias` CSV is **latin-1**; the SHN `.asp` HTML pages are
   **UTF-8**. Missing values in the CSV are `S/D`/`F/S` → null.
-- **Flights load code via pip.** The repo is packaged (`pyproject.toml`, packages `lib` +
-  `flights`; `lib/sql/*.sql` ships as package data). A Flight's source is just
-  `from flights import <mod>; <mod>.main()` after `requirements_txt` pip-installs the repo from
-  git — so keep imports working from an installed package, and keep SQL under `lib/sql/`.
+- **Keep the package installable.** The repo is packaged (`pyproject.toml`, packages `lib` +
+  `flights`; `lib/sql/*.sql` ships as package data) and both `run.yml` and a Flight invoke a
+  module as `from flights import <mod>; <mod>.main()`. Keep imports working from an installed
+  package and keep SQL under `lib/sql/` — that is what makes the Flights path still viable.
+- **Actions cron drifts.** Scheduled runs are queued and can be late or skipped. Safe here only
+  because ingestion is idempotent and alerts dedupe; don't add a job that assumes exact times.
 
 ## Known follow-ups (see README "Known follow-ups")
 
