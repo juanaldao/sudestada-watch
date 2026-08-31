@@ -2,6 +2,10 @@ import { useMemo, useState, useEffect } from "react";
 import { useSQLQuery } from "@motherduck/react-sql-query";
 import { ComposedChart, Area, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, ReferenceArea, CartesianGrid } from "recharts";
 
+// Everything is STORED in UTC (see CLAUDE.md) and converted to Argentina time only for
+// display: labels shift by -3 h, while every filter and join below stays in UTC so data
+// selection is unaffected. Argentina has no DST, so a fixed offset is correct --
+// lib/config.py::ARG_TZ_OFFSET_HOURS and lib/shn.py::_local_to_utc do the same.
 export const REQUIRED_DATABASES = [{ type: "database", path: "md:sudestada", alias: "sudestada" }];
 
 const N = (v) => (v != null ? Number(v) : 0);
@@ -143,7 +147,7 @@ export default function SudestadaForecast() {
         AND run_utc = (SELECT max(run_utc) FROM "sudestada"."main"."forecast" WHERE source = 'shn')
       GROUP BY 1
     )
-    SELECT strftime(ina.valid_utc, '%d %b %H:%M') AS label,
+    SELECT strftime(ina.valid_utc - INTERVAL 3 HOUR, '%d %b %H:%M') AS label,
            ina.p05, ina.p25, ina.main, ina.p75, ina.p95,
            coalesce(shn.pleamar, shn.bajamar) AS extreme,
            CASE WHEN shn.pleamar IS NOT NULL THEN 'pleamar'
@@ -155,7 +159,7 @@ export default function SudestadaForecast() {
   // True bulletin times for the text line -- unsnapped, so it stays correct even when an
   // extreme falls on a half hour and therefore has no marker on the hourly axis.
   const tideQ = useSQLQuery(`
-    SELECT qualifier, strftime(valid_utc, '%d %b %H:%M') AS at_label, value
+    SELECT qualifier, strftime(valid_utc - INTERVAL 3 HOUR, '%d %b %H:%M') AS at_label, value
     FROM "sudestada"."main"."forecast"
     WHERE source = 'shn' AND variable = 'level_forecast'
       AND run_utc = (SELECT max(run_utc) FROM "sudestada"."main"."forecast" WHERE source = 'shn')
@@ -164,7 +168,7 @@ export default function SudestadaForecast() {
   `);
 
   const windQ = useSQLQuery(`
-    SELECT strftime(valid_utc, '%d %b %H:%M') AS label,
+    SELECT strftime(valid_utc - INTERVAL 3 HOUR, '%d %b %H:%M') AS label,
            max(value) FILTER (variable = 'wind_speed') AS speed,
            max(value) FILTER (variable = 'wind_gust')  AS gust,
            max(value) FILTER (variable = 'wind_dir')   AS dir
@@ -178,7 +182,7 @@ export default function SudestadaForecast() {
   const kpiQ = useSQLQuery(`
     WITH obs AS (
       SELECT round(max(level_m) FILTER (station = 'san_fernando'), 2) AS sf,
-             max(ts_utc) AS at_utc
+             strftime(max(ts_utc) - INTERVAL 3 HOUR, '%d %b %H:%M') AS at_label
       FROM "sudestada"."main"."v_latest_level" WHERE source = 'shn'
     ),
     f AS (
@@ -217,7 +221,7 @@ export default function SudestadaForecast() {
         GROUP BY 1 HAVING count(*) >= 20
       )
     )
-    SELECT obs.sf, obs.at_utc, f.peak, f.peak95, w.max_gust, w.mean_speed, w.frac_se, t.trend
+    SELECT obs.sf, obs.at_label, f.peak, f.peak95, w.max_gust, w.mean_speed, w.frac_se, t.trend
     FROM obs, f, w, t
   `);
 
@@ -269,7 +273,7 @@ export default function SudestadaForecast() {
     if (!active || !payload || !payload.length) return null;
     return (
       <div style={{ background: c.surface, border: "1px solid " + c.grid, borderRadius: 6, padding: "8px 10px", fontFamily: SANS, fontSize: 12, color: c.ink }}>
-        <div style={{ color: c.ink2, marginBottom: 4 }}>{label} UTC</div>
+        <div style={{ color: c.ink2, marginBottom: 4 }}>{label} ART</div>
         {payload.filter((p) => p.name).map((p) => (
           <div key={p.name} style={{ display: "flex", gap: 10, justifyContent: "space-between" }}>
             <span style={{ color: c.ink2 }}>{p.name}</span>
@@ -304,7 +308,8 @@ export default function SudestadaForecast() {
     <div style={{ background: c.surface, padding: 24, fontFamily: SANS, minHeight: "100%" }}>
       <h1 style={{ fontSize: 22, fontWeight: 600, color: c.ink, margin: "0 0 2px" }}>Sudestada watch — forecast</h1>
       <div style={{ fontSize: 13, color: c.ink2, marginBottom: 20 }}>
-        San Fernando water level, INA forecast with uncertainty bands. All times UTC.
+        San Fernando water level, INA forecast with uncertainty bands.
+        All times Argentina (ART, UTC{"\u2212"}3). Stored in UTC; converted for display only.
       </div>
 
       {kpiQ.isLoading ? <Skeleton h={54} /> : (
@@ -326,7 +331,7 @@ export default function SudestadaForecast() {
 
       {kpiQ.isLoading ? <Skeleton h={70} /> : (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 24, marginBottom: 28 }}>
-          <Tile c={c} label="Observed now (SHN)" value={k ? N(k.sf).toFixed(2) + " m" : "—"} sub={k ? String(k.at_utc).slice(0, 16) + " UTC" : ""} />
+          <Tile c={c} label="Observed now (SHN)" value={k ? N(k.sf).toFixed(2) + " m" : "—"} sub={k ? String(k.at_label) + " ART" : ""} />
           <Tile c={c} label="Forecast peak (central)" value={peak.toFixed(2) + " m"} sub={k ? "p95 " + N(k.peak95).toFixed(2) + " m" : ""} />
           <Tile c={c} label="Headroom to warning" value={headroom.toFixed(2) + " m"} sub={"warning at " + WARN.toFixed(1) + " m"} accent={c.line} />
           <Tile c={c} label="Mean wind, next 48 h" value={k ? N(k.mean_speed).toFixed(1) + " m/s" : "—"} sub={k ? "max gust " + N(k.max_gust).toFixed(1) + " m/s" : ""} />
@@ -340,7 +345,7 @@ export default function SudestadaForecast() {
         <div style={{ fontFamily: SANS, fontSize: 12.5, color: c.ink2, marginBottom: 22,
                       paddingLeft: 10, borderLeft: "2px solid " + c.gust }}>
           <span style={{ color: c.ink, fontWeight: 600 }}>SHN tide forecast</span>
-          {"  \u00B7  "}{tideText}{"  UTC"}
+          {"  \u00B7  "}{tideText}{"  ART"}
         </div>
       ) : null}
 
