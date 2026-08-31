@@ -84,6 +84,26 @@ function ArrowDot(props) {
   );
 }
 
+// SHN corrected tidal extreme. Shape carries high-vs-low (triangle up / down), so the
+// distinction never rests on colour alone; the ring separates it from the bands underneath.
+// Returning null for a null value is what makes a sparse series render only where it exists.
+function TideDot(props) {
+  const { cx, cy, payload, fill, ring, ink } = props;
+  if (cx == null || cy == null || payload == null || payload.extreme == null) return null;
+  const up = payload.extremeKind === "pleamar";
+  const d = up
+    ? "M " + cx + " " + (cy - 7) + " L " + (cx + 5.5) + " " + (cy + 2.5) + " L " + (cx - 5.5) + " " + (cy + 2.5) + " Z"
+    : "M " + cx + " " + (cy + 7) + " L " + (cx + 5.5) + " " + (cy - 2.5) + " L " + (cx - 5.5) + " " + (cy - 2.5) + " Z";
+  return (
+    <g>
+      <path d={d} fill={fill} stroke={ring} strokeWidth={2} strokeLinejoin="round" />
+      <path d={d} fill={fill} />
+      <text x={cx} y={up ? cy - 12 : cy + 21} textAnchor="middle"
+            fontSize={11} fontFamily={SANS} fill={ink}>{Number(payload.extreme).toFixed(2)}</text>
+    </g>
+  );
+}
+
 function Swatch({ color, label, c, line }) {
   return (
     <span style={{ display: "inline-flex", alignItems: "center", gap: 6, marginRight: 16 }}>
@@ -97,18 +117,50 @@ export default function SudestadaForecast() {
   const dark = useDark();
   const c = dark ? DARK : LIGHT;
 
+  // SHN extremes are joined on date_trunc('hour'): the X axis is categorical on the INA hourly
+  // label, and lib/shn.py preserves the bulletin's minutes, so an extreme at 21:47 would match
+  // no category and vanish silently. Snapping to the hour is what makes it land.
   const fcQ = useSQLQuery(`
-    SELECT strftime(valid_utc, '%d %b %H:%M') AS label,
-           max(value) FILTER (qualifier = 'p05')  AS p05,
-           max(value) FILTER (qualifier = 'p25')  AS p25,
-           max(value) FILTER (qualifier = 'main') AS main,
-           max(value) FILTER (qualifier = 'p75')  AS p75,
-           max(value) FILTER (qualifier = 'p95')  AS p95
+    WITH ina AS (
+      SELECT valid_utc,
+             max(value) FILTER (qualifier = 'p05')  AS p05,
+             max(value) FILTER (qualifier = 'p25')  AS p25,
+             max(value) FILTER (qualifier = 'main') AS main,
+             max(value) FILTER (qualifier = 'p75')  AS p75,
+             max(value) FILTER (qualifier = 'p95')  AS p95
+      FROM "sudestada"."main"."forecast"
+      WHERE source = 'ina' AND variable = 'level_forecast'
+        AND run_utc = (SELECT max(run_utc) FROM "sudestada"."main"."forecast" WHERE source = 'ina')
+        AND valid_utc >= now() AT TIME ZONE 'UTC'
+      GROUP BY valid_utc
+    ),
+    shn AS (
+      SELECT date_trunc('hour', valid_utc) AS hr,
+             max(value) FILTER (qualifier = 'pleamar') AS pleamar,
+             max(value) FILTER (qualifier = 'bajamar') AS bajamar
+      FROM "sudestada"."main"."forecast"
+      WHERE source = 'shn' AND variable = 'level_forecast'
+        AND run_utc = (SELECT max(run_utc) FROM "sudestada"."main"."forecast" WHERE source = 'shn')
+      GROUP BY 1
+    )
+    SELECT strftime(ina.valid_utc, '%d %b %H:%M') AS label,
+           ina.p05, ina.p25, ina.main, ina.p75, ina.p95,
+           coalesce(shn.pleamar, shn.bajamar) AS extreme,
+           CASE WHEN shn.pleamar IS NOT NULL THEN 'pleamar'
+                WHEN shn.bajamar IS NOT NULL THEN 'bajamar' END AS extreme_kind
+    FROM ina LEFT JOIN shn ON shn.hr = ina.valid_utc
+    ORDER BY ina.valid_utc
+  `);
+
+  // True bulletin times for the text line -- unsnapped, so it stays correct even when an
+  // extreme falls on a half hour and therefore has no marker on the hourly axis.
+  const tideQ = useSQLQuery(`
+    SELECT qualifier, strftime(valid_utc, '%d %b %H:%M') AS at_label, value
     FROM "sudestada"."main"."forecast"
-    WHERE source = 'ina' AND variable = 'level_forecast'
-      AND run_utc = (SELECT max(run_utc) FROM "sudestada"."main"."forecast" WHERE source = 'ina')
+    WHERE source = 'shn' AND variable = 'level_forecast'
+      AND run_utc = (SELECT max(run_utc) FROM "sudestada"."main"."forecast" WHERE source = 'shn')
       AND valid_utc >= now() AT TIME ZONE 'UTC'
-    GROUP BY valid_utc ORDER BY valid_utc
+    ORDER BY valid_utc
   `);
 
   const windQ = useSQLQuery(`
@@ -171,7 +223,26 @@ export default function SudestadaForecast() {
 
   const fc = useMemo(() => (fcQ.data ?? []).map((r) => ({
     label: String(r.label), p05: N(r.p05), p25: N(r.p25), main: N(r.main), p75: N(r.p75), p95: N(r.p95),
+    // Deliberately NOT N(): null must stay null, or every hour gets a marker at 0.
+    extreme: r.extreme != null ? Number(r.extreme) : null,
+    extremeKind: r.extreme_kind != null ? String(r.extreme_kind) : null,
   })), [fcQ.data]);
+
+  // Headroom above whatever is actually plotted, so a pleamar over the old hardcoded 2.7 m
+  // ceiling cannot clip silently during the event you most need to see.
+  const yMax = useMemo(() => {
+    const vals = fc.flatMap((d) => [d.p95, d.extreme]).filter((x) => x != null && !isNaN(x));
+    return Math.ceil((Math.max(WARN_M, ...(vals.length ? vals : [WARN_M])) + 0.15) * 10) / 10;
+  }, [fc]);
+
+  const tideText = useMemo(() => {
+    const rows = tideQ.data ?? [];
+    if (!rows.length) return "";
+    return rows.slice(0, 4).map((r) =>
+      (String(r.qualifier) === "pleamar" ? "high" : "low") + " " + N(r.value).toFixed(2)
+      + " m at " + String(r.at_label)
+    ).join(" \u00B7 ");
+  }, [tideQ.data]);
 
   const wind = useMemo(() => (windQ.data ?? []).map((r) => ({
     label: String(r.label), speed: N(r.speed), gust: N(r.gust), dir: N(r.dir),
@@ -205,6 +276,16 @@ export default function SudestadaForecast() {
             <span style={{ fontVariantNumeric: "tabular-nums" }}>{Array.isArray(p.value) ? N(p.value[0]).toFixed(2) + "–" + N(p.value[1]).toFixed(2) : N(p.value).toFixed(2)} {unit}</span>
           </div>
         ))}
+        {payload[0] && payload[0].payload && payload[0].payload.extreme != null ? (
+          <div style={{ display: "flex", gap: 10, justifyContent: "space-between", marginTop: 3, paddingTop: 3, borderTop: "1px solid " + c.grid }}>
+            <span style={{ color: c.ink2 }}>
+              {payload[0].payload.extremeKind === "pleamar" ? "Pleamar (SHN)" : "Bajamar (SHN)"}
+            </span>
+            <span style={{ fontVariantNumeric: "tabular-nums" }}>
+              {Number(payload[0].payload.extreme).toFixed(2)} m
+            </span>
+          </div>
+        ) : null}
         {payload[0] && payload[0].payload && payload[0].payload.dir != null ? (
           <div style={{ display: "flex", gap: 10, justifyContent: "space-between", marginTop: 3, paddingTop: 3, borderTop: "1px solid " + c.grid }}>
             <span style={{ color: c.ink2 }}>Direction</span>
@@ -255,24 +336,40 @@ export default function SudestadaForecast() {
         </div>
       )}
 
+      {tideText ? (
+        <div style={{ fontFamily: SANS, fontSize: 12.5, color: c.ink2, marginBottom: 22,
+                      paddingLeft: 10, borderLeft: "2px solid " + c.gust }}>
+          <span style={{ color: c.ink, fontWeight: 600 }}>SHN tide forecast</span>
+          {"  \u00B7  "}{tideText}{"  UTC"}
+        </div>
+      ) : null}
+
       <div style={{ fontSize: 13, fontWeight: 600, color: c.ink, marginBottom: 2 }}>Predicted level</div>
       <div style={{ marginBottom: 8 }}>
         <Swatch c={c} color={c.line} label="Central forecast" line />
         <Swatch c={c} color={c.band50} label="50% range (p25–p75)" />
         <Swatch c={c} color={c.band90} label="90% range (p05–p95)" />
         <Swatch c={c} color={c.warn} label="Warning threshold" line />
+        <Swatch c={c} color={c.gust} label="SHN tide extreme" />
+        <span style={{ fontFamily: SANS, fontSize: 12, color: c.ink2 }}>
+          {"\u25B2"} pleamar {"\u00B7"} {"\u25BC"} bajamar
+        </span>
       </div>
       {fcQ.isLoading ? <Skeleton h={300} /> : (
         <ResponsiveContainer width="100%" height={300}>
           <ComposedChart data={fc} margin={{ top: 8, right: 12, bottom: 4, left: 0 }}>
             <CartesianGrid stroke={c.grid} vertical={false} />
             <XAxis dataKey="label" {...axis} minTickGap={48} tickLine={false} />
-            <YAxis {...axis} tickLine={false} width={48} domain={[0, 2.7]}
+            <YAxis {...axis} tickLine={false} width={48} domain={[0, yMax]}
                    label={{ value: "m", angle: 0, position: "top", offset: 12, fill: c.ink2, fontSize: 11 }} />
             <Tooltip content={tip("m")} cursor={{ stroke: c.ink2, strokeWidth: 1 }} />
             <Area dataKey={(d) => [d.p05, d.p95]} name="90% range" fill={c.band90} stroke="none" isAnimationActive={false} />
             <Area dataKey={(d) => [d.p25, d.p75]} name="50% range" fill={c.band50} stroke="none" isAnimationActive={false} />
             <Line dataKey="main" name="Central" stroke={c.line} strokeWidth={2} dot={false} isAnimationActive={false} />
+            {/* No `name`: the tooltip lists series by name, and a mostly-null series would add
+                a junk row at every hour. It gets its own footer row below instead. */}
+            <Line dataKey="extreme" stroke="none" isAnimationActive={false} legendType="none"
+                  dot={<TideDot fill={c.gust} ring={c.surface} ink={c.ink} />} activeDot={false} />
             <ReferenceLine y={WARN} stroke={c.warn} strokeWidth={2} strokeDasharray="5 4"
                            label={{ value: "warning 2.5 m", position: "insideTopLeft", fill: c.ink2, fontSize: 11 }} />
           </ComposedChart>
