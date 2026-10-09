@@ -71,13 +71,36 @@ Without `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID`, alerts print to the console.
    (e.g. `git+https://github.com/you/sudestada-watch.git@main`); otherwise it's derived from
    the Actions env at the pushed commit.
 3. Push to `main` → the **deploy** workflow creates the database and applies schema/views.
-   The **run** workflow then executes each job on its cron.
+   The **run** workflow then executes each job hourly (see *Hourly trigger* below).
 4. **Add repo secrets `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`** so alerts reach Telegram;
    without them they print to the workflow log. Verify the channel with
    `gh workflow run "run sudestada jobs" -f job=notify_test` — alerts are rare, so don't wait
    for a real one to find out whether delivery works.
    Get a token from @BotFather; get the chat id by messaging the bot and reading
    `https://api.telegram.org/bot<token>/getUpdates`.
+
+### Hourly trigger (cron-job.org)
+
+GitHub's `schedule` trigger is best-effort: with `52 * * * *` it actually fired only 4–6 times
+a day. So an external cron calls the workflow's `workflow_dispatch` API instead, and the
+`schedule` entry stays as a fallback.
+
+1. Create a **fine-grained PAT** scoped to this repo only, permission **Actions: Read and
+   write**, nothing else. Set an expiry and put a reminder in your calendar to renew it.
+   When it expires the dispatches start failing with 401.
+2. On cron-job.org, create a job:
+   - URL: `https://api.github.com/repos/juanaldao/sudestada-watch/actions/workflows/run.yml/dispatches`
+   - Schedule: every hour at minute **52**, timezone UTC
+   - Method **POST**, body `{"ref":"main"}` (`job` defaults to `all`)
+   - Headers: `Authorization: Bearer <PAT>`, `Accept: application/vnd.github+json`,
+     `X-GitHub-Api-Version: 2022-11-28`, `Content-Type: application/json`
+   - Enable failure notifications. A successful dispatch returns **204**.
+3. Check: the next run in the Actions tab shows event `workflow_dispatch`.
+
+> **DuckDB is pinned** (`duckdb==1.5.6`). The `md:` connection loads the `motherduck`
+> extension, which MotherDuck publishes some days *after* each DuckDB release. An unpinned
+> install picked up a fresh release and every run 404'd for 3.7 days (2026-09-28 → 10-02).
+> Bump the pin only once MotherDuck supports the new version.
 
 > `deploy/sync_flights.py` is correct and validated against the MotherDuck SQL reference
 > (2026-08-30): `schedule_cron`, `flight_secret_names` (`VARCHAR[]`), and `flight_id` (not

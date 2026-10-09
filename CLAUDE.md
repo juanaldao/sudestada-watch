@@ -57,8 +57,8 @@ Everything after the frame lands is SQL; Python only touches the messy edges.
   the frame, `INSERT ... ON CONFLICT DO NOTHING`, or `DO UPDATE` for forecasts).
 - `lib/config.py` — stations, source IDs (INA series 52/3345, cal 432), endpoints, thresholds.
 - `flights/*.py` — the four scheduled jobs, each with a `main()`; each source is wrapped in
-  try/except so one failing feed doesn't sink the run. Scheduled by `run.yml`, which maps the
-  Scheduled by `run.yml`, which runs **all four hourly at :52** in dependency order, so
+  try/except so one failing feed doesn't sink the run. Scheduled by `run.yml`, which runs
+  **all four hourly at :52** in dependency order, so
   `eval_alerts` always reads data ingested seconds earlier. Both sources publish at :45, so
   hourly matches the real resolution -- the original 15-min poll re-fetched identical rows.
 - `lib/sql/schema.sql` (tables + PKs) and `views.sql` (`v_residual`, `v_latest_level`,
@@ -90,6 +90,11 @@ Everything after the frame lands is SQL; Python only touches the messy edges.
   package and keep SQL under `lib/sql/` — that is what makes the Flights path still viable.
 - **Actions cron drifts.** Scheduled runs are queued and can be late or skipped. Safe here only
   because ingestion is idempotent and alerts dedupe; don't add a job that assumes exact times.
+  In practice `schedule` fired only 4-6x/day, so the real hourly clock is **cron-job.org POSTing
+  `workflow_dispatch`** (README "Hourly trigger"); `schedule` is just a fallback.
+- **DuckDB is pinned exactly** (`requirements.txt`, `pyproject.toml`). The `motherduck` extension
+  ships days after each DuckDB release; unpinned, every `md:` connect 404'd for 3.7 days. Bump
+  only once MotherDuck supports the new version.
 
 ## Known follow-ups (see README "Known follow-ups")
 
