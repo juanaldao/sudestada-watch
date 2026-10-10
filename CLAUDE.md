@@ -8,7 +8,10 @@ A "sudestada watch": ingests Río de la Plata / Paraná Delta water data (San Fe
 Norden) and raises flood alerts. Storage is **MotherDuck** (DuckDB cloud); ETL runs as
 **scheduled GitHub Actions** (`.github/workflows/run.yml`); alerts go to **Telegram**.
 MotherDuck Flights were the original design and the code still suits them, but scheduled
-Flights need a Business plan, so Actions carries the cron. `deploy.yml` applies the schema. See `README.md` and `PLAN.md` for the full rationale.
+Flights need a Business plan, so Actions carries the cron. `deploy.yml` applies the schema.
+The charts are MotherDuck **Dives** (`dives/`), which `run.yml` also republishes hourly as a
+public static site at https://juanaldao.github.io/sudestada-watch/ (no MotherDuck account
+needed). See `README.md` and `PLAN.md` for the full rationale.
 
 ## Commands
 
@@ -33,9 +36,13 @@ MOTHERDUCK_TOKEN=... python flights/ingest_levels.py
 # Deploy: create the database + apply schema/views (what CI runs on push)
 export MOTHERDUCK_TOKEN=...
 python deploy/init_db.py
+
+# Public site: snapshot the Dive queries, bundle, preview (needs Node 22)
+python site/export_data.py         # honours SUDESTADA_DB / MOTHERDUCK_TOKEN
+cd site && npm ci && npm run build && python -m http.server -d dist
 ```
 
-There is no build step, linter config, or test framework — the `tests/smoke_*.py` scripts ARE
+The only build step is the site bundle (`site/build.mjs`, esbuild). There is no linter config or test framework — the `tests/smoke_*.py` scripts ARE
 the test suite (plain asserts, hitting live APIs). Set `SUDESTADA_DB` to run them offline-safe
 against a throwaway file; delete the file between runs to start clean.
 
@@ -66,8 +73,10 @@ Everything after the frame lands is SQL; Python only touches the messy edges.
   literal, and the esbuild bundle aliases that hook to `site/src/shim.js`. Keep Dive SQL as
   plain template literals (no `${}`) and only import packages listed in `site/package.json`.
 - `lib/sql/schema.sql` (tables + PKs) and `views.sql` (`v_residual`, `v_latest_level`,
-  `v_wind_features`). Views are `CREATE OR REPLACE`; tables are `IF NOT EXISTS`.
+  `v_wind_features`, `v_level_events` -- the extreme-level events behind the History Dive). Views are `CREATE OR REPLACE`; tables are `IF NOT EXISTS`.
 - `deploy/init_db.py` — creates the database + applies schema/views; this is what CI runs.
+- `deploy/backfill_ina.py` — one-off INA San Fernando hourly history since 2011, run manually
+  via `backfill.yml`. Idempotent like everything else.
 - `deploy/sync_flights.py` — Flights registration. NOT run by CI; needs a Business plan.
   Kept as the path back to Flights if the account is upgraded.
 
