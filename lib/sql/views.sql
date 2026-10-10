@@ -57,7 +57,7 @@ SELECT
 FROM pivoted;
 
 -- Extreme-level EVENTS at San Fernando, for the history Dive. Only hours at/above 2.5 m
--- ('high', the warning threshold in lib/config.py::LEVEL_THRESHOLDS_M) or at/below 0.5 m
+-- ('high', the warning threshold in lib/config.py::LEVEL_THRESHOLDS_M) or at/below 0.1 m
 -- ('low', bajante) count; ordinary levels are dropped. INA only: it carries the history
 -- back to 2011 (deploy/backfill_ina.py) and SHN republishes the same gauge, so including
 -- both would double-count. Gaps-and-islands per kind: a qualifying hour more than 12 h after
@@ -78,7 +78,7 @@ hits AS (
     SELECT ts_utc, value,
            CASE WHEN value >= 2.5 THEN 'high' ELSE 'low' END AS kind
     FROM lv
-    WHERE (value >= 2.5 OR value <= 0.5)
+    WHERE (value >= 2.5 OR value <= 0.1)
       AND NOT (abs(d_prev) > 0.8 AND abs(d_next) > 0.8 AND sign(d_prev) = sign(d_next))
 ),
 marked AS (
