@@ -81,7 +81,7 @@ repo/
   .github/workflows/deploy.yml
 ```
 
-**Cadence** — superseded 2026-08-30: all four now run **hourly at :52** from
+**Cadence** — superseded 2026-08-30: all four now run **hourly** (at :52, moved to :03 on 2026-10-09) from
 `.github/workflows/run.yml`, not as Flights on separate crons. Both sources publish at :45, so
 15-min polling re-fetched identical rows; and GitHub honoured only 1 tick in 4 at 15-min
 frequency. Original per-Flight design below.

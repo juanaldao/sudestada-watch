@@ -28,9 +28,9 @@ deploy/         init_db.py — creates the DB + applies schema (run by CI)
 tests/          smoke_*.py — run each stage end-to-end against a local DuckDB
 ```
 
-Cadence (UTC): all four jobs run **hourly at :52**, in order — levels, wind, forecasts, then
-alerts. INA and SHN both publish at :45, so hourly is the sources' own resolution; :52 leaves
-7 minutes of margin and avoids the contended top of the hour.
+Cadence (UTC): all four jobs run **hourly at :03**, in order — levels, wind, forecasts, then
+alerts. INA and SHN both publish at :45, so hourly is the sources' own resolution; :03 leaves
+18 minutes of margin for a late publication.
 
 ## Tables
 
@@ -81,7 +81,7 @@ Without `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID`, alerts print to the console.
 
 ### Hourly trigger (cron-job.org)
 
-GitHub's `schedule` trigger is best-effort: with `52 * * * *` it actually fired only 4–6 times
+GitHub's `schedule` trigger is best-effort: with `52 * * * *` (the original minute) it actually fired only 4–6 times
 a day. So an external cron calls the workflow's `workflow_dispatch` API instead, and the
 `schedule` entry stays as a fallback.
 
@@ -90,7 +90,7 @@ a day. So an external cron calls the workflow's `workflow_dispatch` API instead,
    When it expires the dispatches start failing with 401.
 2. On cron-job.org, create a job:
    - URL: `https://api.github.com/repos/juanaldao/sudestada-watch/actions/workflows/run.yml/dispatches`
-   - Schedule: every hour at minute **52**, timezone UTC
+   - Schedule: every hour at minute **3**, timezone UTC
    - Method **POST**, body `{"ref":"main"}` (`job` defaults to `all`)
    - Headers: `Authorization: Bearer <PAT>`, `Accept: application/vnd.github+json`,
      `X-GitHub-Api-Version: 2022-11-28`, `Content-Type: application/json`

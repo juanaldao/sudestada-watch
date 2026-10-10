@@ -1,15 +1,15 @@
 # Scheduled ETL. MotherDuck Flights would be the natural home for this (see PLAN.md), but
 # scheduled Flights require a Business plan, so the cron lives here instead.
 #
-# HOURLY at :52, one schedule entry, all four modules in dependency order.
+# HOURLY at :03, one schedule entry, all four modules in dependency order.
 #
 # Why hourly: INA and SHN both publish on the hour at :45 -- every level reading in the table
 # sits at minute 45, without exception. A 15-minute poll re-fetched identical rows four times
 # and gained nothing; the sources, not the cron, set the real resolution.
 #
-# Why :52: seven minutes after publication, so a tick reads fresh data, and off the top of the
-# hour where GitHub's scheduler is most contended. Empirically it is also the only minute that
-# actually fired when four ticks/hour were configured.
+# Why :03: eighteen minutes after publication, so a tick reads fresh data with ample margin for
+# a source that posts late. (Originally :52, picked to dodge GitHub's contended top of the hour;
+# that no longer matters since the real trigger is the external dispatch below.)
 #
 # Why one entry: each cron line is a separate registration and GitHub deprioritises
 # high-frequency schedules -- with 7,22,37,52 only 1 tick in 4 ran. One hourly registration
@@ -20,7 +20,7 @@
 # verified in production -- a repeat run touched 17 rows, not 743, with zero duplicate keys)
 # and alerts dedupe via alert_event.
 #
-# The real clock is EXTERNAL: cron-job.org POSTs workflow_dispatch at :52 every hour (see
+# The real clock is EXTERNAL: cron-job.org POSTs workflow_dispatch at :03 every hour (see
 # README "Hourly trigger"). Even one hourly entry was not honoured -- in practice GitHub fired
 # `schedule` only 4-6 times a day, at random minutes. API dispatches start within seconds.
 # The schedule below stays as a fallback; a double run is harmless for the reasons above, and
@@ -29,7 +29,7 @@ name: run sudestada jobs
 
 on:
   schedule:
-    - cron: "52 * * * *"   # fallback only; cron-job.org's dispatch is the primary trigger
+    - cron: "3 * * * *"    # fallback only; cron-job.org's dispatch is the primary trigger
   workflow_dispatch:
     inputs:
       job:
