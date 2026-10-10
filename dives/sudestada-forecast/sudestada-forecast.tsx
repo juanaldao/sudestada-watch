@@ -317,8 +317,7 @@ export default function SudestadaForecast() {
     <div style={{ background: c.surface, padding: 24, fontFamily: SANS, minHeight: "100%" }}>
       <h1 style={{ fontSize: 22, fontWeight: 600, color: c.ink, margin: "0 0 2px" }}>Sudestada watch — forecast</h1>
       <div style={{ fontSize: 13, color: c.ink2, marginBottom: 20 }}>
-        San Fernando water level, INA forecast with uncertainty bands.
-        All times Argentina (ART, UTC{"\u2212"}3). Stored in UTC; converted for display only.
+        San Fernando water level. SHN alerts and INA forecast.
         {updated ? <div style={{ marginTop: 4 }}>Last updated on {String(updated)} ART</div> : null}
       </div>
 
@@ -339,6 +338,14 @@ export default function SudestadaForecast() {
         </div>
       )}
 
+      {tideText ? (
+        <div style={{ fontFamily: SANS, fontSize: 12.5, color: c.ink2, marginBottom: 22,
+                      paddingLeft: 10, borderLeft: "2px solid " + c.gust }}>
+          <span style={{ color: c.ink, fontWeight: 600 }}>SHN tide forecast</span>
+          {"  ·  "}{tideText}{"  ART"}
+        </div>
+      ) : null}
+
       {kpiQ.isLoading ? <Skeleton h={70} /> : (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 24, marginBottom: 28 }}>
           <Tile c={c} label="Observed now (SHN)" value={k ? N(k.sf).toFixed(2) + " m" : "—"} sub={k ? String(k.at_label) + " ART" : ""} />
@@ -350,14 +357,6 @@ export default function SudestadaForecast() {
                 accent={k && N(k.frac_se) >= WIND_SE_FRAC_MIN ? c.warn : undefined} />
         </div>
       )}
-
-      {tideText ? (
-        <div style={{ fontFamily: SANS, fontSize: 12.5, color: c.ink2, marginBottom: 22,
-                      paddingLeft: 10, borderLeft: "2px solid " + c.gust }}>
-          <span style={{ color: c.ink, fontWeight: 600 }}>SHN tide forecast</span>
-          {"  \u00B7  "}{tideText}{"  ART"}
-        </div>
-      ) : null}
 
       <div style={{ fontSize: 13, fontWeight: 600, color: c.ink, marginBottom: 2 }}>Predicted level</div>
       <div style={{ marginBottom: 8 }}>
