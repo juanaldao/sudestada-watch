@@ -1,0 +1,8 @@
+{
+  "id": "c87f1143-fe76-4a00-b9e5-04be871c0cab",
+  "title": "Sudestada History",
+  "description": "Extreme water levels at San Fernando since 2011: high-water events at or above 2.5 m and low-water events at or below 0.1 m, with records, yearly and seasonal counts.",
+  "requiredResources": [
+    { "url": "md:sudestada", "alias": "sudestada" }
+  ]
+}
