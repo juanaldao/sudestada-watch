@@ -14,14 +14,20 @@ from __future__ import annotations
 
 import pathlib
 import sys
+from datetime import timedelta
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
-from lib import config
+from lib import config, shn
 from lib.md import connect, ensure_schema, utcnow
 from lib.notify import get_notifier
 
 EMOJI = {"watch": "👀", "warning": "⚠️", "alert": "🚨"}
+
+
+def _art(ts):
+    """UTC (tz-naive) -> ART wall time, for display."""
+    return ts + timedelta(hours=config.ARG_TZ_OFFSET_HOURS)
 
 
 def _severity_for(level: float, thr: dict | None) -> str | None:
@@ -38,18 +44,23 @@ def _collect(con) -> list[dict]:
     now = utcnow().replace(tzinfo=None)
     cands: list[dict] = []
 
-    # 1. SHN official crecida (always notify; escalate by peak).
-    for station, peak, peak_t, issued in con.execute(
-        "select station, peak_value, peak_time_utc, issued_utc from official_alert "
+    # 1. SHN official crecida (always notify; escalate by peak). Lists every row the notice
+    #    gives for the station, in ART as SHN publishes them.
+    for station, peak, peak_t, issued, raw_text in con.execute(
+        "select station, peak_value, peak_time_utc, issued_utc, raw_text from official_alert "
         "qualify row_number() over (partition by station order by issued_utc desc)=1"
     ).fetchall():
         thr = config.LEVEL_THRESHOLDS_M.get(("shn", station))
         sev = _severity_for(peak or 0, thr) or "warning"
+        heights = shn.alert_heights(raw_text, station) or [(peak, peak_t)]
+        rows = "\n".join(
+            f"• {v:.2f} m a las {_art(t):%H:%M} del {_art(t):%d/%m}" for v, t in heights
+        )
         cands.append({
             "ts_utc": now, "rule": "shn_official", "severity": sev, "station": station,
             "dedupe_key": f"shn:{issued:%Y-%m-%dT%H:%M}:{station}",
-            "message": f"SHN AVISO POR CRECIDA — {station}: pico {peak} m a las "
-                       f"{peak_t:%H:%M} UTC del {peak_t:%d/%m} (emitido {issued:%d/%m %H:%M} UTC).",
+            "message": f"SHN AVISO POR CRECIDA — {station} "
+                       f"(emitido {_art(issued):%d/%m %H:%M} ART):\n{rows}",
         })
 
     # 2. Observed level threshold.
@@ -62,7 +73,7 @@ def _collect(con) -> list[dict]:
                 "ts_utc": now, "rule": "observed_threshold", "severity": sev, "station": station,
                 "dedupe_key": f"obs:{source}:{station}:{sev}:{ts:%Y-%m-%d}",
                 "message": f"Nivel observado ({source}) en {station}: {level:.2f} m "
-                           f"a las {ts:%H:%M} UTC — umbral {sev}.",
+                           f"a las {_art(ts):%H:%M} ART — umbral {sev}.",
             })
 
     # 3. INA forecast threshold within the lead window.
@@ -82,7 +93,7 @@ def _collect(con) -> list[dict]:
                 "station": config.INA_FORECAST_STATION,
                 "dedupe_key": f"fcst:ina:{config.INA_FORECAST_STATION}:{run:%Y-%m-%dT%H:%M}",
                 "message": f"Pronóstico INA {config.INA_FORECAST_STATION}: pico {peak:.2f} m "
-                           f"a las {peak_t:%H:%M UTC %d/%m} (run {run:%d/%m %H:%M} UTC) — {sev}.",
+                           f"a las {_art(peak_t):%H:%M ART %d/%m} (run {_art(run):%d/%m %H:%M} ART) — {sev}.",
             })
 
     # 4. Sustained SE wind precursor.

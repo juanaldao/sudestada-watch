@@ -115,6 +115,22 @@ def _empty() -> pd.DataFrame:
 _ALERT_STATIONS = {r"SAN FERNANDO": config.SAN_FERNANDO}
 
 
+def alert_heights(text: str, station: str) -> list[tuple[float, pd.Timestamp]]:
+    """All (height m, time UTC) rows a notice lists for `station`, in notice order.
+
+    A notice can list several rows per port (e.g. tonight's and tomorrow's high water).
+    """
+    pattern = next((p for p, s in _ALERT_STATIONS.items() if s == station), None)
+    if pattern is None:
+        return []
+    return [
+        (float(v), _dmy_hm_to_utc(dmy, hm))
+        for v, hm, dmy in re.findall(
+            pattern + r"\s+([\d.]+)\s+(\d{2}:\d{2})\s+(\d{2}/\d{2}/\d{4})", text
+        )
+    ]
+
+
 def fetch_official_alerts() -> pd.DataFrame:
     """Parse the SHN AACRIOPLA crecida notice into `official_alert` rows.
 
@@ -136,15 +152,16 @@ def fetch_official_alerts() -> pd.DataFrame:
 
     now = utcnow().replace(tzinfo=None)
     rows = []
-    for pattern, station in _ALERT_STATIONS.items():
-        mm = re.search(
-            pattern + r"\s+([\d.]+)\s+(\d{2}:\d{2})\s+(\d{2}/\d{2}/\d{4})", text
-        )
-        if not mm:
+    for station in _ALERT_STATIONS.values():
+        heights = alert_heights(text, station)
+        if not heights:
             continue
+        # The stored peak is the highest row (it drives severity); eval_alerts re-parses
+        # raw_text via alert_heights to list every row in the message.
+        peak, peak_t = max(heights, key=lambda h: h[0])
         rows.append({
             "source": "shn", "issued_utc": issued, "station": station,
-            "peak_value": float(mm[1]), "peak_time_utc": _dmy_hm_to_utc(mm[3], mm[2]),
+            "peak_value": peak, "peak_time_utc": peak_t,
             "raw_text": text[:4000], "url": config.SHN_ALERTS_HTML, "ingested_at": now,
         })
     return pd.DataFrame(rows, columns=_ALERT_COLS)
