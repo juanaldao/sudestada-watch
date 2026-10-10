@@ -225,6 +225,15 @@ export default function SudestadaForecast() {
     FROM obs, f, w, t
   `);
 
+  // Freshness of the hourly ETL: the newest row it wrote to either table.
+  const updQ = useSQLQuery(`
+    SELECT strftime(greatest(
+             (SELECT max(ingested_at) FROM "sudestada"."main"."observation"),
+             (SELECT max(ingested_at) FROM "sudestada"."main"."forecast")
+           ) - INTERVAL 3 HOUR, '%d %b %H:%M') AS at_label
+  `);
+  const updated = updQ.data?.[0]?.at_label;
+
   const fc = useMemo(() => (fcQ.data ?? []).map((r) => ({
     label: String(r.label), p05: N(r.p05), p25: N(r.p25), main: N(r.main), p75: N(r.p75), p95: N(r.p95),
     // Deliberately NOT N(): null must stay null, or every hour gets a marker at 0.
@@ -310,6 +319,7 @@ export default function SudestadaForecast() {
       <div style={{ fontSize: 13, color: c.ink2, marginBottom: 20 }}>
         San Fernando water level, INA forecast with uncertainty bands.
         All times Argentina (ART, UTC{"\u2212"}3). Stored in UTC; converted for display only.
+        {updated ? <div style={{ marginTop: 4 }}>Last updated on {String(updated)} ART</div> : null}
       </div>
 
       {kpiQ.isLoading ? <Skeleton h={54} /> : (
