@@ -248,14 +248,11 @@ export default function SudestadaForecast() {
     return Math.ceil((Math.max(WARN_M, ...(vals.length ? vals : [WARN_M])) + 0.15) * 10) / 10;
   }, [fc]);
 
-  const tideText = useMemo(() => {
-    const rows = tideQ.data ?? [];
-    if (!rows.length) return "";
-    return rows.slice(0, 4).map((r) =>
+  const tideLines = useMemo(() =>
+    (tideQ.data ?? []).slice(0, 4).map((r) =>
       (String(r.qualifier) === "pleamar" ? "high" : "low") + " " + N(r.value).toFixed(2)
       + " m at " + String(r.at_label)
-    ).join(" \u00B7 ");
-  }, [tideQ.data]);
+    ), [tideQ.data]);
 
   const wind = useMemo(() => (windQ.data ?? []).map((r) => ({
     label: String(r.label), speed: N(r.speed), gust: N(r.gust), dir: N(r.dir),
@@ -331,18 +328,17 @@ export default function SudestadaForecast() {
             <div style={{ fontFamily: SANS, fontSize: 12.5, color: c.ink2, marginTop: 3 }}>
               {k ? "Peak " + peak.toFixed(2) + " m vs " + WARN_M.toFixed(1) + " m warning. Wind averages "
                    + N(k.mean_speed).toFixed(1) + " m/s with " + Math.round(N(k.frac_se) * 100)
-                   + "% from the SE sector \u2014 the precursor needs " + WIND_SPEED_MIN.toFixed(0) + " m/s and "
-                   + Math.round(WIND_SE_FRAC_MIN * 100) + "%." : ""}
+                   + "% from the SE sector." : ""}
             </div>
           </div>
         </div>
       )}
 
-      {tideText ? (
+      {tideLines.length ? (
         <div style={{ fontFamily: SANS, fontSize: 12.5, color: c.ink2, marginBottom: 22,
                       paddingLeft: 10, borderLeft: "2px solid " + c.gust }}>
-          <span style={{ color: c.ink, fontWeight: 600 }}>SHN tide forecast</span>
-          {"  ·  "}{tideText}{"  ART"}
+          <div style={{ color: c.ink, fontWeight: 600 }}>SHN tide forecast (ART)</div>
+          {tideLines.map((t) => <div key={t} style={{ marginTop: 2 }}>{t}</div>)}
         </div>
       ) : null}
 
