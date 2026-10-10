@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sudestada Watch</title>
+  <meta name="description" content="San Fernando water-level forecast, wind, and history of extreme levels on the Río de la Plata.">
+  <style>
+    /* Surfaces and inks match the Dives' LIGHT/DARK palettes, which pick by the same media query. */
+    :root { --surface: #fcfcfb; --ink: #0b0b0b; --ink2: #52514e; --grid: #e5e5e5; --accent: #2a78d6; }
+    @media (prefers-color-scheme: dark) {
+      :root { --surface: #1a1a19; --ink: #ffffff; --ink2: #c3c2b7; --grid: #383835; --accent: #3987e5; }
+    }
+    html, body { margin: 0; background: var(--surface); color: var(--ink); }
+    body { font-family: 'Inter', system-ui, -apple-system, sans-serif; max-width: 1100px; margin: 0 auto; }
+    nav { display: flex; gap: 4px; padding: 16px 24px 0; }
+    nav a { padding: 6px 12px; border-radius: 6px; font-size: 13px; color: var(--ink2); text-decoration: none; }
+    nav a[aria-current="page"] { background: var(--grid); color: var(--ink); font-weight: 600; }
+    footer { padding: 8px 24px 32px; font-size: 12px; color: var(--ink2); }
+    footer a { color: var(--accent); }
+    #root:empty::before { content: "Loading…"; display: block; padding: 24px; color: var(--ink2); }
+    @media (max-width: 600px) { nav, footer { padding-left: 16px; padding-right: 16px; } }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="app.js"></script>
+</body>
+</html>

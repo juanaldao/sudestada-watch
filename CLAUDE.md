@@ -61,6 +61,10 @@ Everything after the frame lands is SQL; Python only touches the messy edges.
   **all four hourly at :52** in dependency order, so
   `eval_alerts` always reads data ingested seconds earlier. Both sources publish at :45, so
   hourly matches the real resolution -- the original 15-min poll re-fetched identical rows.
+- `dives/*/*.tsx` — MotherDuck Dives, ALSO published publicly to GitHub Pages by the `site` job
+  in `run.yml` (README "Public site"): `site/export_data.py` snapshots each `useSQLQuery`
+  literal, and the esbuild bundle aliases that hook to `site/src/shim.js`. Keep Dive SQL as
+  plain template literals (no `${}`) and only import packages listed in `site/package.json`.
 - `lib/sql/schema.sql` (tables + PKs) and `views.sql` (`v_residual`, `v_latest_level`,
   `v_wind_features`). Views are `CREATE OR REPLACE`; tables are `IF NOT EXISTS`.
 - `deploy/init_db.py` — creates the database + applies schema/views; this is what CI runs.

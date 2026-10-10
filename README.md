@@ -106,6 +106,29 @@ a day. So an external cron calls the workflow's `workflow_dispatch` API instead,
 > (2026-08-30): `schedule_cron`, `flight_secret_names` (`VARCHAR[]`), and `flight_id` (not
 > `name`) for `MD_UPDATE_FLIGHT`. It only needs a Business plan to run.
 
+## Public site (GitHub Pages)
+
+The Dives need a MotherDuck account to view, so the **run** workflow also publishes them as a
+public static site, rebuilt every hour in a `site` job after ingestion:
+
+1. `site/export_data.py` pulls every `useSQLQuery(`...`)` literal out of `dives/*/*.tsx`,
+   runs it against MotherDuck, and writes the rows to `site/dist/data.json`, keyed by the
+   whitespace-normalised SQL.
+2. `site/build.mjs` (esbuild) bundles the Dive `.tsx` files **unchanged**, aliasing
+   `@motherduck/react-sql-query` to `site/src/shim.js`, which serves that snapshot.
+
+So the Dives stay the single source of truth: edit a Dive and the site follows on the next run.
+Query SQL must stay a plain template literal (no `${...}`), or the export refuses it. No token
+reaches the browser. Enable once: *Settings → Pages → Source: GitHub Actions*. Republish on
+demand with `gh workflow run "run sudestada jobs" -f job=site`.
+
+Local preview:
+
+```bash
+SUDESTADA_DB=./_smoke.duckdb python site/export_data.py   # or MOTHERDUCK_TOKEN=...
+cd site && npm ci && npm run build && python -m http.server -d dist
+```
+
 ## Alert rules (`flights/eval_alerts.py`)
 
 1. `shn_official` — active SHN AACRIOPLA crecida for our stations (authoritative).

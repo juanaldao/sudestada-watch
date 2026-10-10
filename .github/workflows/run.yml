@@ -43,6 +43,7 @@ on:
           - ingest_forecasts
           - eval_alerts
           - notify_test   # send one test message to prove the alert channel works
+          - site          # only republish the public GitHub Pages site
 
 permissions:
   contents: read
@@ -81,6 +82,7 @@ jobs:
           if [ "$mods" = "all" ] || [ -z "$mods" ]; then
             mods="ingest_levels ingest_wind ingest_forecasts eval_alerts"
           fi
+          if [ "$mods" = "site" ]; then mods=""; fi   # handled by the site job below
           echo "mods=$mods" >> "$GITHUB_OUTPUT"
           echo "running: $mods"
 
@@ -95,3 +97,57 @@ jobs:
             fi
             echo "::endgroup::"
           done
+
+  # Public read-only site on GitHub Pages: the Dives in dives/ bundled with a snapshot of their
+  # query results (site/export_data.py), so friends can see it without a MotherDuck account.
+  # Runs after ingestion so the snapshot includes this tick's data, and even when an ingest step
+  # failed: stale-but-published beats nothing. A single-module dispatch skips it.
+  site:
+    needs: run
+    if: ${{ !cancelled() && (inputs.job == '' || inputs.job == 'all' || inputs.job == 'site') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    env:
+      MOTHERDUCK_TOKEN: ${{ secrets.MOTHERDUCK_TOKEN }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      - name: Snapshot Dive queries
+        run: python site/export_data.py
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      - name: Build site
+        working-directory: site
+        run: npm ci --no-audit --no-fund && npm run build
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/dist
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
