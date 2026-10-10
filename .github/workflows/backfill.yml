@@ -1,0 +1,38 @@
+# One-off history backfill: INA hourly San Fernando levels into `observation` (see
+# deploy/backfill_ina.py). Manual only. Idempotent, so rerunning it is harmless.
+name: backfill INA history
+
+on:
+  workflow_dispatch:
+    inputs:
+      first_year:
+        description: "First year to load"
+        default: "2011"
+      last_year:
+        description: "Last year to load (blank = this year)"
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  backfill:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      MOTHERDUCK_TOKEN: ${{ secrets.MOTHERDUCK_TOKEN }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      - name: Backfill
+        run: python deploy/backfill_ina.py ${{ inputs.first_year }} ${{ inputs.last_year }}

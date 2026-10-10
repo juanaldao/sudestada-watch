@@ -22,11 +22,18 @@ def _get(path: str, params: dict) -> object:
     return r.json()
 
 
-def fetch_observed(station: str, series_id: int, hours_back: int = 48) -> pd.DataFrame:
-    """Return observed level rows for one station, shaped for the `observation` table."""
+def fetch_observed(
+    station: str, series_id: int, hours_back: int = 48,
+    start: str | None = None, end: str | None = None,
+) -> pd.DataFrame:
+    """Return observed level rows for one station, shaped for the `observation` table.
+
+    Defaults to the trailing `hours_back`; pass `start`/`end` ('YYYY-MM-DD') for a fixed
+    window, as the history backfill does.
+    """
     now = utcnow()
-    start = (now - timedelta(hours=hours_back)).strftime("%Y-%m-%d")
-    end = (now + timedelta(days=1)).strftime("%Y-%m-%d")
+    start = start or (now - timedelta(hours=hours_back)).strftime("%Y-%m-%d")
+    end = end or (now + timedelta(days=1)).strftime("%Y-%m-%d")
     data = _get(
         f"/obs/puntual/series/{series_id}/observaciones",
         {"timestart": start, "timeend": end},
