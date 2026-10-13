@@ -261,7 +261,6 @@ export default function SudestadaForecast() {
   const k = kpiQ.data?.[0];
   const WARN = WARN_M;
   const peak = k ? N(k.peak) : 0;
-  const headroom = k ? (WARN - peak) : 0;
   const v = verdict(peak, k ? N(k.peak95) : 0, k ? N(k.mean_speed) : 0, k ? N(k.frac_se) : 0, k ? N(k.trend) : 0);
 
   // Contiguous stretches of SE-sector wind, shaded behind the wind chart.
@@ -346,7 +345,6 @@ export default function SudestadaForecast() {
         <div style={{ display: "flex", flexWrap: "wrap", gap: 24, marginBottom: 28 }}>
           <Tile c={c} label="Observed now (SHN)" value={k ? N(k.sf).toFixed(2) + " m" : "—"} sub={k ? String(k.at_label) + " ART" : ""} />
           <Tile c={c} label="Forecast peak (central)" value={peak.toFixed(2) + " m"} sub={k ? "p95 " + N(k.peak95).toFixed(2) + " m" : ""} />
-          <Tile c={c} label="Headroom to warning" value={headroom.toFixed(2) + " m"} sub={"warning at " + WARN.toFixed(1) + " m"} accent={c.line} />
           <Tile c={c} label="Mean wind, next 48 h" value={k ? N(k.mean_speed).toFixed(1) + " m/s" : "—"} sub={k ? "max gust " + N(k.max_gust).toFixed(1) + " m/s" : ""} />
           <Tile c={c} label="Wind from the SE sector" value={k ? Math.round(N(k.frac_se) * 100) + "%" : "—"}
                 sub={"precursor needs " + Math.round(WIND_SE_FRAC_MIN * 100) + "%"}
