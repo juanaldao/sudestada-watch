@@ -86,8 +86,9 @@ a day. So an external cron calls the workflow's `workflow_dispatch` API instead,
 `schedule` entry stays as a fallback.
 
 1. Create a **fine-grained PAT** scoped to this repo only, permission **Actions: Read and
-   write**, nothing else. Set an expiry and put a reminder in your calendar to renew it.
-   When it expires the dispatches start failing with 401.
+   write**, nothing else. The current token has **no expiry**; the narrow scope is what keeps
+   that acceptable. If it is ever revoked or rotated, the dispatches fail with 401 until the
+   new token is pasted into the cron-job.org job's `Authorization` header.
 2. On cron-job.org, create a job:
    - URL: `https://api.github.com/repos/juanaldao/sudestada-watch/actions/workflows/run.yml/dispatches`
    - Schedule: every hour at minute **3**, timezone UTC
