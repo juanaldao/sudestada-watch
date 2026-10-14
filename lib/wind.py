@@ -1,4 +1,4 @@
-"""Open-Meteo wind — hourly speed/direction/gusts for the Tigre point.
+"""Open-Meteo wind — hourly speed/direction/gusts at Pilote Norden (mid-estuary).
 
 Past+current hours land as `observation` (feeds v_wind_features, the SE-precursor signal);
 future hours land as `forecast`. Units forced to m/s; times requested in UTC (tz-naive).
@@ -25,10 +25,10 @@ _FIELDS = {
 
 
 def fetch_wind() -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Return (observation_df, forecast_df) for the Tigre point."""
+    """Return (observation_df, forecast_df) for the wind point (config.WIND_*)."""
     params = {
-        "latitude": config.TIGRE_LAT,
-        "longitude": config.TIGRE_LON,
+        "latitude": config.WIND_LAT,
+        "longitude": config.WIND_LON,
         "hourly": ",".join(_FIELDS),
         "wind_speed_unit": "ms",
         "timezone": "UTC",
@@ -53,13 +53,13 @@ def fetch_wind() -> tuple[pd.DataFrame, pd.DataFrame]:
 
         past = base[is_past]
         obs_frames.append(pd.DataFrame({
-            "source": "open-meteo", "station": config.TIGRE_POINT, "variable": variable,
+            "source": "open-meteo", "station": config.WIND_STATION, "variable": variable,
             "ts_utc": past["ts"], "value": past["value"], "unit": unit, "ingested_at": now,
         }))
 
         future = base[~is_past]
         fcst_frames.append(pd.DataFrame({
-            "source": "open-meteo", "station": config.TIGRE_POINT, "variable": variable,
+            "source": "open-meteo", "station": config.WIND_STATION, "variable": variable,
             "run_utc": run, "valid_utc": future["ts"], "value": future["value"],
             "qualifier": "main", "unit": unit, "ingested_at": now,
         }))

@@ -1,4 +1,4 @@
-"""Flight: ingest wind (hourly) from Open-Meteo for the Tigre point.
+"""Flight: ingest wind (hourly) from Open-Meteo at Pilote Norden.
 
 Past/current hours -> observation (feeds v_wind_features); future hours -> forecast.
 Forecast rows use DO UPDATE so a fresh run refreshes the forward-looking values.

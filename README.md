@@ -16,7 +16,7 @@ flooding near Tigre.
 |---|---|---|
 | INA a5 API | Observed level (San Fernando `52`, Pilote Norden `3345`); forecast (`cal 432`, p05–p95) | JSON REST |
 | SHN | Observed hourly levels (both stations); Pronóstico Mareológico; AACRIOPLA crecida alerts | CSV / HTML scrape |
-| Open-Meteo | Wind speed/dir/gusts (forecast + ERA5 history) at the Tigre point | JSON REST |
+| Open-Meteo | Wind speed/dir/gusts (forecast + ERA5 history) at Pilote Norden (mid-estuary, -34.627, -57.920) | JSON REST |
 
 ## Layout
 

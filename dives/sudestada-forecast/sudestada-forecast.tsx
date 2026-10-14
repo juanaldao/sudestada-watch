@@ -173,8 +173,8 @@ export default function SudestadaForecast() {
            max(value) FILTER (variable = 'wind_gust')  AS gust,
            max(value) FILTER (variable = 'wind_dir')   AS dir
     FROM "sudestada"."main"."forecast"
-    WHERE source = 'open-meteo'
-      AND run_utc = (SELECT max(run_utc) FROM "sudestada"."main"."forecast" WHERE source = 'open-meteo')
+    WHERE source = 'open-meteo' AND station = 'pilote_norden'
+      AND run_utc = (SELECT max(run_utc) FROM "sudestada"."main"."forecast" WHERE source = 'open-meteo' AND station = 'pilote_norden')
       AND valid_utc >= now() AT TIME ZONE 'UTC'
     GROUP BY valid_utc ORDER BY valid_utc
   `);
@@ -199,8 +199,8 @@ export default function SudestadaForecast() {
              max(value) FILTER (variable = 'wind_gust')  AS gst,
              max(value) FILTER (variable = 'wind_dir')   AS dir
       FROM "sudestada"."main"."forecast"
-      WHERE source = 'open-meteo'
-        AND run_utc = (SELECT max(run_utc) FROM "sudestada"."main"."forecast" WHERE source = 'open-meteo')
+      WHERE source = 'open-meteo' AND station = 'pilote_norden'
+        AND run_utc = (SELECT max(run_utc) FROM "sudestada"."main"."forecast" WHERE source = 'open-meteo' AND station = 'pilote_norden')
         AND valid_utc >= now() AT TIME ZONE 'UTC'
       GROUP BY valid_utc
     ),
@@ -384,7 +384,7 @@ export default function SudestadaForecast() {
         </ResponsiveContainer>
       )}
 
-      <div style={{ fontSize: 13, fontWeight: 600, color: c.ink, margin: "28px 0 2px" }}>Wind at Tigre — the driver</div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: c.ink, margin: "28px 0 2px" }}>Wind at Pilote Norden — the driver</div>
       <div style={{ marginBottom: 8 }}>
         <Swatch c={c} color={c.line} label="Sustained speed" line />
         <Swatch c={c} color={c.gust} label="Gust" line />

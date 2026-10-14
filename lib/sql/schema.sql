@@ -7,7 +7,7 @@
 -- Raw/observed time series: measured level, astronomic tide, wind, and the derived residual.
 CREATE TABLE IF NOT EXISTS observation (
     source      VARCHAR   NOT NULL,   -- 'ina' | 'shn' | 'open-meteo' | 'smn'
-    station     VARCHAR   NOT NULL,   -- 'san_fernando' | 'pilote_norden' | 'tigre_point'
+    station     VARCHAR   NOT NULL,   -- 'san_fernando' | 'pilote_norden' ('tigre_point': legacy wind, pre-2026-10-14)
     variable    VARCHAR   NOT NULL,   -- level_observed | tide_astro | wind_speed | wind_dir | wind_gust | residual
     ts_utc      TIMESTAMP NOT NULL,   -- observation instant, UTC
     value       DOUBLE,               -- NULL = missing (e.g. SHN 'S/D' / 'F/S')

@@ -105,7 +105,7 @@ def _collect(con) -> list[dict]:
         if frac_se >= config.WIND_SE_FRAC_MIN and (mean_speed or 0) >= config.WIND_MEAN_SPEED_MIN_MS:
             cands.append({
                 "ts_utc": now, "rule": "wind_precursor", "severity": "watch",
-                "station": config.TIGRE_POINT,
+                "station": config.WIND_STATION,
                 "dedupe_key": f"wind:{now:%Y-%m-%d %H}"[:13],  # per-hour bucket
                 "message": f"Viento del SE sostenido: {frac_se:.0%} de las últimas {int(n_hours)} h, "
                            f"media {mean_speed:.1f} m/s, ráfaga máx {max_gust:.1f} m/s — posible sudestada.",

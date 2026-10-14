@@ -20,6 +20,9 @@ n_obs = con.execute(
 n_fcst = con.execute(
     "select count(*) from forecast where source='open-meteo'"
 ).fetchone()[0]
+stations = [r[0] for r in con.execute(
+    "select distinct station from observation where source='open-meteo'"
+).fetchall()]
 vars_obs = [r[0] for r in con.execute(
     "select distinct variable from observation where source='open-meteo' order by 1"
 ).fetchall()]
@@ -30,6 +33,7 @@ print("wind obs rows:", n_obs, "forecast rows:", n_fcst, "vars:", vars_obs)
 print("v_wind_features:", feat)
 
 assert n_obs > 0, "no wind observation rows"
+assert stations == ["pilote_norden"], f"wind landed on {stations}, expected pilote_norden"
 assert {"wind_speed", "wind_dir", "wind_gust"} <= set(vars_obs)
 assert feat is not None and feat[0] is not None and feat[0] > 0, "no wind features computed"
 print("smoke_wind OK")

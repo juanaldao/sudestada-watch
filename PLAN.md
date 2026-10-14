@@ -54,7 +54,7 @@ clean REST APIs; the SHN products require CSV/scrape/PDF.
 | **SHN** | Astronomic tide table | San Fernando | `/oceanografia/Tmareas/Form_Tmareas.asp` | HTML scrape |
 | **SHN** | *Pronóstico Mareológico* | Río de la Plata Interior (incl. San Fernando) | `/oceanografia/pronostico.asp` + stable PDF `/Oceanografia/pronostico/pronostico.pdf` | HTML + PDF poll |
 | **SHN** | ⭐ Official sudestada alerts | per-station peak + time | `/oceanografia/AACRIOPLA.asp` | HTML scrape |
-| **Open-Meteo** | Wind forecast + gusts | point ~ Tigre (-34.42, -58.58) | `api.open-meteo.com/v1/forecast?...hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m` | JSON REST, no key |
+| **Open-Meteo** | Wind forecast + gusts | point ~ Pilote Norden (-34.627, -57.920); was Tigre (-34.42, -58.58) until 2026-10-14 | `api.open-meteo.com/v1/forecast?...hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m` | JSON REST, no key |
 | **Open-Meteo** | Historical ERA5 wind (backtesting) | same point | `archive-api.open-meteo.com/v1/archive` | JSON REST, no key |
 | **SMN** *(optional)* | Observed wind ground truth | San Fernando / Aeroparque | `ws.smn.gob.ar/map_items/weather` | de-facto JSON |
 
@@ -167,7 +167,7 @@ Bot token + chat id live in **MotherDuck Flight secrets**, not the repo.
 2. Assert INA observed San Fernando (52) + Pilote Norden (3345) rows for last 24 h; INA
    forecast (432) has all five qualifiers.
 3. Assert SHN CSV parsed both stations; spot-check a value vs the live page.
-4. Assert Open-Meteo wind rows (speed/dir/gust) for the Tigre point.
+4. Assert Open-Meteo wind rows (speed/dir/gust) for Pilote Norden.
 5. `SELECT * FROM v_residual`/`v_wind_features` return sensible values.
 6. Force a synthetic low threshold → `eval_alerts` raises an `alert_event`, notifies once, and
    does **not** re-notify on the next tick (dedupe). Rerun any Flight → no duplicate rows

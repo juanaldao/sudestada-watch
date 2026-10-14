@@ -7,7 +7,6 @@ from __future__ import annotations
 # --- Stations (our canonical keys) -----------------------------------------------------------
 SAN_FERNANDO = "san_fernando"
 PILOTE_NORDEN = "pilote_norden"
-TIGRE_POINT = "tigre_point"  # geo point for gridded wind
 
 # --- INA a5 API -------------------------------------------------------------------------------
 INA_BASE = "https://alerta.ina.gob.ar/a5"
@@ -32,8 +31,13 @@ SHN_MISSING_TOKENS = {"S/D", "F/S", "", "-"}
 ARG_TZ_OFFSET_HOURS = -3  # SHN pages are local ART (UTC-3), no DST
 
 # --- Wind (Open-Meteo) ------------------------------------------------------------------------
-TIGRE_LAT = -34.42
-TIGRE_LON = -58.58
+# Sampled at Pilote Norden, mid-estuary: a sudestada is SE wind blowing over the open Río de la
+# Plata, so the land point at Tigre used before (-34.42, -58.58) under-read the driver. Stored
+# under the pilote_norden station key with source='open-meteo' (the level rows there are
+# source shn/ina, so PKs never collide). Rows before 2026-10-14 are station 'tigre_point'.
+WIND_STATION = PILOTE_NORDEN
+WIND_LAT = -34.627
+WIND_LON = -57.920
 OPEN_METEO_FORECAST = "https://api.open-meteo.com/v1/forecast"
 OPEN_METEO_ARCHIVE = "https://archive-api.open-meteo.com/v1/archive"
 

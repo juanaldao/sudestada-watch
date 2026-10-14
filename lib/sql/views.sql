@@ -29,14 +29,14 @@ FROM observation
 WHERE variable = 'level_observed' AND value IS NOT NULL
 QUALIFY ROW_NUMBER() OVER (PARTITION BY source, station ORDER BY ts_utc DESC) = 1;
 
--- Sustained-wind precursor over the trailing 12 h at the Tigre point.
+-- Sustained-wind precursor over the trailing 12 h at Pilote Norden (Open-Meteo, mid-estuary).
 -- SE sector = wind direction in [112.5, 157.5) deg (ESE-SSE). eval_alerts applies the
 -- speed/fraction thresholds; this view just exposes the raw aggregates.
 CREATE OR REPLACE VIEW v_wind_features AS
 WITH recent AS (
     SELECT ts_utc, variable, value
     FROM observation
-    WHERE station = 'tigre_point'
+    WHERE source = 'open-meteo' AND station = 'pilote_norden'
       AND variable IN ('wind_speed', 'wind_dir', 'wind_gust')
       AND ts_utc >= now() - INTERVAL 12 HOUR
 ),
