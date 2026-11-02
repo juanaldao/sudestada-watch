@@ -1,64 +1,46 @@
-# Scheduled ETL. MotherDuck Flights would be the natural home for this (see PLAN.md), but
-# scheduled Flights require a Business plan, so the cron lives here instead.
+# Public site. The ETL itself (ingest + alerts) is ONE scheduled MotherDuck Flight,
+# `sudestada-hourly` at :03 UTC (deploy/sync_flights.py); this workflow only republishes the
+# GitHub Pages snapshot of the Dives and checks that the Flight is still running.
 #
-# HOURLY at :03, one schedule entry, all four modules in dependency order.
+# Why :10: the Flight runs at :03 and takes well under a minute, so the snapshot includes that
+# hour's data. INA and SHN both publish at :45, so hourly is the data's real resolution.
 #
-# Why hourly: INA and SHN both publish on the hour at :45 -- every level reading in the table
-# sits at minute 45, without exception. A 15-minute poll re-fetched identical rows four times
-# and gained nothing; the sources, not the cron, set the real resolution.
+# The real clock is EXTERNAL: cron-job.org POSTs workflow_dispatch at :10 every hour (see
+# README "Hourly trigger"). In practice GitHub fired `schedule` only 4-6 times a day, at random
+# minutes; API dispatches start within seconds. The schedule below stays as a fallback; a
+# double run only republishes the same snapshot, and the concurrency group stops overlaps.
 #
-# Why :03: eighteen minutes after publication, so a tick reads fresh data with ample margin for
-# a source that posts late. (Originally :52, picked to dodge GitHub's contended top of the hour;
-# that no longer matters since the real trigger is the external dispatch below.)
-#
-# Why one entry: each cron line is a separate registration and GitHub deprioritises
-# high-frequency schedules -- with 7,22,37,52 only 1 tick in 4 ran. One hourly registration
-# asks for the least and is the most likely to be honoured.
-#
-# Running all four per tick means eval_alerts always reads data ingested seconds earlier.
-# Late or dropped ticks stay harmless: ingestion is idempotent (natural PKs + ON CONFLICT,
-# verified in production -- a repeat run touched 17 rows, not 743, with zero duplicate keys)
-# and alerts dedupe via alert_event.
-#
-# The real clock is EXTERNAL: cron-job.org POSTs workflow_dispatch at :03 every hour (see
-# README "Hourly trigger"). Even one hourly entry was not honoured -- in practice GitHub fired
-# `schedule` only 4-6 times a day, at random minutes. API dispatches start within seconds.
-# The schedule below stays as a fallback; a double run is harmless for the reasons above, and
-# the concurrency group stops two runs overlapping.
+# Staleness check: a Flight that stops running fails silently on the MotherDuck side, so the
+# last step fails this run (and GitHub emails) when no observation was ingested in 2 h.
 name: run sudestada jobs
 
 on:
   schedule:
-    - cron: "3 * * * *"    # fallback only; cron-job.org's dispatch is the primary trigger
+    - cron: "10 * * * *"   # fallback only; cron-job.org's dispatch is the primary trigger
   workflow_dispatch:
     inputs:
       job:
         description: "Which job to run"
         type: choice
-        default: all
+        default: site
         options:
-          - all
-          - ingest_levels
-          - ingest_wind
-          - ingest_forecasts
-          - eval_alerts
+          - site          # republish the public GitHub Pages site
           - notify_test   # send one test message to prove the alert channel works
-          - site          # only republish the public GitHub Pages site
 
 permissions:
   contents: read
 
-# Don't let a slow run stack up on the next tick, but never cancel one mid-write.
+# Don't let a slow run stack up on the next tick, but never cancel one mid-deploy.
 concurrency:
   group: sudestada-run
   cancel-in-progress: false
 
 jobs:
-  run:
+  notify_test:
+    if: ${{ inputs.job == 'notify_test' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
-      MOTHERDUCK_TOKEN: ${{ secrets.MOTHERDUCK_TOKEN }}
       TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
     steps:
@@ -74,37 +56,15 @@ jobs:
       - name: Install deps
         run: pip install -r requirements.txt
 
-      # Scheduled ticks run everything; a manual dispatch can pick one job.
-      - name: Select modules
-        id: sel
+      - name: Send test notification
         run: |
-          mods="${{ inputs.job }}"
-          if [ "$mods" = "all" ] || [ -z "$mods" ]; then
-            mods="ingest_levels ingest_wind ingest_forecasts eval_alerts"
-          fi
-          if [ "$mods" = "site" ]; then mods=""; fi   # handled by the site job below
-          echo "mods=$mods" >> "$GITHUB_OUTPUT"
-          echo "running: $mods"
-
-      - name: Run
-        run: |
-          for m in ${{ steps.sel.outputs.mods }}; do
-            echo "::group::$m"
-            if [ "$m" = "notify_test" ]; then
-              python -c "from lib.notify import get_notifier; import sys; ok = get_notifier().send('\u2705 sudestada watch: test notification. If you can read this, the alert channel works.'); print('delivered:', ok); sys.exit(0 if ok else 1)"
-            else
-              python -c "from flights import $m; $m.main()"
-            fi
-            echo "::endgroup::"
-          done
+          python -c "from lib.notify import get_notifier; import sys; ok = get_notifier().send('\u2705 sudestada watch: test notification. If you can read this, the alert channel works.'); print('delivered:', ok); sys.exit(0 if ok else 1)"
 
   # Public read-only site on GitHub Pages: the Dives in dives/ bundled with a snapshot of their
   # query results (site/export_data.py), so friends can see it without a MotherDuck account.
-  # Runs after ingestion so the snapshot includes this tick's data, and even when an ingest step
-  # failed: stale-but-published beats nothing. A single-module dispatch skips it.
+  # Scheduled ticks and `site` dispatches run it; a notify_test dispatch skips it.
   site:
-    needs: run
-    if: ${{ !cancelled() && (inputs.job == '' || inputs.job == 'all' || inputs.job == 'site') }}
+    if: ${{ inputs.job == '' || inputs.job == 'site' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -151,3 +111,17 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deploy
         uses: actions/deploy-pages@v5
+
+      # Runs after the deploy so a stale site still publishes, then the run fails and GitHub
+      # emails. ingested_at (not ts_utc) measures whether the Flight runs: normal age here is
+      # ~7 min, so 2 h means about two missed Flight runs.
+      - name: Check the Flight is still ingesting
+        run: |
+          python -c "
+          import sys
+          from lib.md import connect, utcnow
+          last = connect().execute('SELECT max(ingested_at) FROM observation').fetchone()[0]
+          age = utcnow().replace(tzinfo=None) - last
+          print(f'newest ingestion {last} UTC, {age} ago')
+          sys.exit(f'STALE: nothing ingested for {age}; is the sudestada-hourly Flight running?' if age.total_seconds() > 2 * 3600 else 0)
+          "

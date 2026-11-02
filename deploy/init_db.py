@@ -1,8 +1,8 @@
 """Create the MotherDuck database if needed and apply schema.sql / views.sql.
 
 Run by GitHub Actions on push (see .github/workflows/deploy.yml), or locally with a token.
-This is the deploy step for the Actions-scheduled setup; `sync_flights.py` is the equivalent
-for MotherDuck Flights and needs a Business plan (see its docstring).
+The ETL itself is the scheduled MotherDuck Flight registered by `sync_flights.py` (run
+locally, not by CI; see its docstring).
 """
 from __future__ import annotations
 

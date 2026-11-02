@@ -9,3 +9,4 @@ dist/
 *.egg-info/
 node_modules/
 linkedin_post.md
+to_do.md

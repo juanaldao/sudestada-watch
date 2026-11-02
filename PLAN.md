@@ -23,7 +23,14 @@ deltas from the original design below:
   "Scheduled runs are not available on your plan. Upgrade to a Business plan." The cron moved
   to `.github/workflows/run.yml`. This reverses the PLAN decision below that rejected Actions
   as a scheduler — that rationale assumed Flights' native cron was available. `sync_flights.py`
-  is kept and is correct; it needs only a plan upgrade.
+  is kept and is correct; it needs only a plan upgrade. (Despite the error's wording, the
+  pricing page, checked 2026-11-02, lists scheduling on Lite once a card is on file, not only
+  on Business.)
+- **Back to Flights 2026-11-02:** a card is on file (Lite), so the ETL is again a scheduled
+  Flight — but ONE (`sudestada-hourly`, `3 * * * *`, F4) running all four modules in order, not
+  four on 15-min crons. Actions keeps only the public site (`run.yml`, :10) plus a staleness
+  check that fails if nothing was ingested for 2 h. The Flight installs the repo from `@main`,
+  so pushes ship code; `deploy/sync_flights.py` is run locally, not by CI.
 
 ## Context
 

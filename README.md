@@ -5,9 +5,10 @@ and raises alerts when a *sudestada* (persistent SE wind piling water up the est
 flooding near Tigre.
 
 - **Storage:** MotherDuck (DuckDB cloud).
-- **ETL:** scheduled GitHub Actions (`.github/workflows/run.yml`). MotherDuck Flights were
-  the original design, but scheduled Flights require a Business plan.
+- **ETL:** one scheduled MotherDuck Flight, `sudestada-hourly` (hourly at :03 UTC), registered
+  by `deploy/sync_flights.py`. Scheduling needs a card on file (Lite) or Business.
 - **Deploy:** GitHub Actions on push (creates the database and applies schema/views).
+- **Public site:** GitHub Actions (`.github/workflows/run.yml`), hourly at :10.
 - **Alerts:** Telegram.
 
 ## Data sources (all reads are public, no auth)
@@ -22,9 +23,9 @@ flooding near Tigre.
 
 ```
 lib/            fetch+normalize helpers, MotherDuck connection, config, notifier, sql/
-flights/        the four scheduled jobs (each has a main())
+flights/        the four ETL modules (each has a main()), run in order by one Flight
 deploy/         init_db.py — creates the DB + applies schema (run by CI)
-                sync_flights.py — Flights registration; needs a Business plan, not run by CI
+                sync_flights.py — registers the hourly Flight; run locally, not by CI
 tests/          smoke_*.py — run each stage end-to-end against a local DuckDB
 ```
 
@@ -66,23 +67,35 @@ Without `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID`, alerts print to the console.
 
 ## Deploy
 
-1. Push this repo to GitHub (public, or configure a token so Flights can `pip install` it).
-2. Add repo secret **`MOTHERDUCK_TOKEN`**. Optionally set `REPO_URL`
-   (e.g. `git+https://github.com/you/sudestada-watch.git@main`); otherwise it's derived from
-   the Actions env at the pushed commit.
-3. Push to `main` → the **deploy** workflow creates the database and applies schema/views.
-   The **run** workflow then executes each job hourly (see *Hourly trigger* below).
-4. **Add repo secrets `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`** so alerts reach Telegram;
-   without them they print to the workflow log. Verify the channel with
-   `gh workflow run "run sudestada jobs" -f job=notify_test` — alerts are rare, so don't wait
-   for a real one to find out whether delivery works.
-   Get a token from @BotFather; get the chat id by messaging the bot and reading
-   `https://api.telegram.org/bot<token>/getUpdates`.
+1. Push this repo to GitHub (public, so the Flight can `pip install` it from `@main`).
+2. Add repo secret **`MOTHERDUCK_TOKEN`**. Push to `main` → the **deploy** workflow creates the
+   database and applies schema/views.
+3. **Create the Telegram secret in MotherDuck** (once; values from @BotFather, and the chat id
+   from messaging the bot and reading `https://api.telegram.org/bot<token>/getUpdates`):
+   ```sql
+   CREATE SECRET sudestada_telegram IN MOTHERDUCK (TYPE FLIGHTS,
+     PARAMS MAP {'TELEGRAM_BOT_TOKEN': '...', 'TELEGRAM_CHAT_ID': '...'});
+   ```
+   Flights inject each key as a bare env var, which is what `lib/notify.py` reads.
+4. **Register the Flight:** `MOTHERDUCK_TOKEN=... python deploy/sync_flights.py`. It creates or
+   updates `sudestada-hourly` (F4, cron `3 * * * *`, the secret attached), whose source
+   pip-installs this repo at `@main` and runs the four modules in order. A push is all it takes
+   to ship code; re-run the script only to change the bootstrap, schedule or secrets.
+   `--no-schedule` registers it on-demand only, for testing. If the secret is missing, the
+   Flight still ingests but exits non-zero before `eval_alerts` rather than log alerts to a
+   console nobody reads (which would also mark them sent).
+5. **Verify delivery** — alerts are rare, so don't wait for a real one:
+   `python deploy/sync_flights.py --notify-test` creates an on-demand `sudestada-notify-test`
+   Flight; run it with `CALL MD_RUN_FLIGHT(flight_id := '...')`, then delete it.
+   Inspect runs with `MD_LIST_FLIGHT_RUNS(flight_id := '...')`.
+6. Repo secrets `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID` are kept only for the Actions-side
+   check `gh workflow run "run sudestada jobs" -f job=notify_test`.
 
 ### Hourly trigger (cron-job.org)
 
-GitHub's `schedule` trigger is best-effort: with `52 * * * *` (the original minute) it actually fired only 4–6 times
-a day. So an external cron calls the workflow's `workflow_dispatch` API instead, and the
+This drives only the public site; the ETL runs on the Flight's own cron. GitHub's `schedule`
+trigger is best-effort: with `52 * * * *` (the original minute) it actually fired only 4–6
+times a day. So an external cron calls the workflow's `workflow_dispatch` API instead, and the
 `schedule` entry stays as a fallback.
 
 1. Create a **fine-grained PAT** scoped to this repo only, permission **Actions: Read and
@@ -91,8 +104,8 @@ a day. So an external cron calls the workflow's `workflow_dispatch` API instead,
    new token is pasted into the cron-job.org job's `Authorization` header.
 2. On cron-job.org, create a job:
    - URL: `https://api.github.com/repos/juanaldao/sudestada-watch/actions/workflows/run.yml/dispatches`
-   - Schedule: every hour at minute **3**, timezone UTC
-   - Method **POST**, body `{"ref":"main"}` (`job` defaults to `all`)
+   - Schedule: every hour at minute **10**, timezone UTC (7 min after the Flight)
+   - Method **POST**, body `{"ref":"main"}` (`job` defaults to `site`)
    - Headers: `Authorization: Bearer <PAT>`, `Accept: application/vnd.github+json`,
      `X-GitHub-Api-Version: 2022-11-28`, `Content-Type: application/json`
    - Enable failure notifications. A successful dispatch returns **204**.
@@ -103,14 +116,15 @@ a day. So an external cron calls the workflow's `workflow_dispatch` API instead,
 > install picked up a fresh release and every run 404'd for 3.7 days (2026-09-28 → 10-02).
 > Bump the pin only once MotherDuck supports the new version.
 
-> `deploy/sync_flights.py` is correct and validated against the MotherDuck SQL reference
-> (2026-08-30): `schedule_cron`, `flight_secret_names` (`VARCHAR[]`), and `flight_id` (not
-> `name`) for `MD_UPDATE_FLIGHT`. It only needs a Business plan to run.
+> **Staleness check.** A Flight that stops running fails silently on the MotherDuck side, so
+> the site job's last step fails the run (GitHub emails) when `max(observation.ingested_at)`
+> is over 2 h old — about two missed Flight runs. The site still publishes first.
 
 ## Public site (GitHub Pages)
 
 The Dives need a MotherDuck account to view, so the **run** workflow also publishes them as a
-public static site, rebuilt every hour in a `site` job after ingestion:
+public static site, rebuilt every hour at :10 in a `site` job, a few minutes after the
+Flight has ingested that hour's data:
 
 1. `site/export_data.py` pulls every `useSQLQuery(`...`)` literal out of `dives/*/*.tsx`,
    runs it against MotherDuck, and writes the rows to `site/dist/data.json`, keyed by the

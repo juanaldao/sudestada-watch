@@ -7,7 +7,7 @@ site/src/shim.js, which looks the same key up -- so the page renders the Dive co
 with no MotherDuck account or token in the browser.
 
 Queries that use now() are evaluated at export time; the run workflow re-exports hourly,
-right after ingestion, which is the data's real resolution anyway.
+a few minutes after the Flight ingests, which is the data's real resolution anyway.
 
 Run:  MOTHERDUCK_TOKEN=... python site/export_data.py
       SUDESTADA_DB=./_smoke.duckdb python site/export_data.py   (local file, attached as "sudestada")

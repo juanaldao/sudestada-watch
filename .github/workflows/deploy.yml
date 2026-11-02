@@ -30,7 +30,7 @@ jobs:
       - name: Install deps
         run: pip install -r requirements.txt
 
-      # Creates the database if needed and applies schema/views. The ETL itself is scheduled
-      # in run.yml, not as MotherDuck Flights (scheduled Flights need a Business plan).
+      # Creates the database if needed and applies schema/views. The ETL itself is the
+      # scheduled MotherDuck Flight `sudestada-hourly`, registered by deploy/sync_flights.py.
       - name: Apply schema
         run: python deploy/init_db.py
